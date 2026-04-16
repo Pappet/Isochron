@@ -21,7 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import com.scanner.app.data.*
+import com.scanner.app.ui.theme.ScannerAppTheme
 import com.scanner.app.util.SignalHelper
 
 // ─── Signal Strength Bar ───────────────────────────────────────
@@ -378,4 +380,43 @@ private fun deviceIcon(deviceClass: String?): ImageVector = when (deviceClass) {
     "Gesundheit" -> Icons.Outlined.MonitorHeart
     "Netzwerk" -> Icons.Outlined.Router
     else -> Icons.Outlined.Bluetooth
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewWifiNetworkCard() {
+    ScannerAppTheme {
+        WifiNetworkCard(
+            network = WifiNetwork(
+                ssid = "Home_Network",
+                bssid = "00:11:22:33:44:55",
+                signalStrength = -55,
+                frequency = 5240,
+                channel = 48,
+                securityType = "WPA3",
+                isConnected = true,
+                band = "5 GHz",
+                wpsEnabled = true
+            )
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewBluetoothDeviceCard() {
+    ScannerAppTheme {
+        BluetoothDeviceCard(
+            device = BluetoothDevice(
+                address = "AA:BB:CC:DD:EE:FF",
+                name = "My Headphones",
+                rssi = -60,
+                isConnected = true,
+                bondState = BondState.BONDED,
+                type = com.scanner.app.data.DeviceType.CLASSIC,
+                deviceClass = "Audio/Video",
+                minorClass = "Headphones"
+            )
+        )
+    }
 }

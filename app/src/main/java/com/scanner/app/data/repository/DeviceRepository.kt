@@ -24,7 +24,8 @@ class DeviceRepository(context: Context) {
      */
     suspend fun persistWifiScan(
         networks: List<WifiNetwork>,
-        durationMs: Long? = null
+        durationMs: Long? = null,
+        location: android.location.Location? = null
     ) {
         val sessionId = dao.insertScanSession(
             ScanSessionEntity(
@@ -45,6 +46,14 @@ class DeviceRepository(context: Context) {
                 put("band", network.band)
                 put("security", network.securityType)
                 put("isConnected", network.isConnected)
+                put("wpsEnabled", network.wpsEnabled)
+                put("rawCapabilities", network.rawCapabilities)
+                location?.let {
+                    put("latitude", it.latitude)
+                    put("longitude", it.longitude)
+                    if (it.hasAltitude()) put("altitude", it.altitude)
+                    if (it.hasAccuracy()) put("accuracy", it.accuracy.toDouble())
+                }
             }.toString()
 
             val deviceId = dao.upsertDevice(
@@ -215,7 +224,7 @@ class DeviceRepository(context: Context) {
     // ═══════════════════════════════════════════════════════════════
 
     suspend fun persistLanScan(devices: List<com.scanner.app.util.LanDevice>) {
-        val sessionId = dao.insertScanSession(
+        dao.insertScanSession(
             ScanSessionEntity(
                 scanType = ScanType.LAN,
                 timestamp = Instant.now(),
@@ -302,5 +311,18 @@ class DeviceRepository(context: Context) {
         existingMeta.put("portScanTime", Instant.now().toString())
 
         dao.updateDevice(device.copy(metadata = existingMeta.toString()))
+    }
+
+    suspend fun persistGattData(address: String, gattJsonStr: String) {
+        val device = dao.getDeviceByAddress(address) ?: return
+        val existingMeta = try {
+            device.metadata?.let { JSONObject(it) } ?: JSONObject()
+        } catch (_: Exception) { JSONObject() }
+        
+        try {
+            val gattData = JSONObject(gattJsonStr)
+            existingMeta.put("gattData", gattData)
+            dao.updateDevice(device.copy(metadata = existingMeta.toString()))
+        } catch (_: Exception) {}
     }
 }

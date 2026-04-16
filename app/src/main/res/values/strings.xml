@@ -1,4 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Netzwerk-Scanner</string>
+    <string name="app_name">ScannerApp</string>
+    <string name="title_network_scanner">Netzwerk-Scanner</string>
+    
+    <!-- MainActivity Tabs -->
+    <string name="tab_wlan">WLAN</string>
+    <string name="tab_bluetooth">Bluetooth</string>
+    <string name="tab_lan">LAN</string>
+    <string name="tab_monitor">Monitor</string>
+    <string name="tab_inventory">Inventar</string>
+    
+    <!-- MainActivity Actions -->
+    <string name="action_security_audit">Security Audit</string>
+    <string name="action_export">Exportieren</string>
+    <string name="action_channel_analysis">Kanalanalyse</string>
+
+    <!-- WifiScreen -->
+    <string name="wifi_networks">WLAN-Netzwerke</string>
+    <string name="wifi_found_short">%1$d gefunden</string>
+    <string name="wifi_connected_part"> · %1$d verbunden</string>
+    <string name="wifi_wps_part"> · %1$d WPS</string>
+    
+    <string name="btn_scan">Scannen</string>
+    <string name="btn_scanning">Scanne...</string>
+    
+    <string name="gps_geotagging">GPS-Geotagging</string>
+    <string name="gps_stats">GPS · %1$d Einträge · %2$d Netzwerke</string>
+    
+    <string name="export_short">Export</string>
+    <string name="export_wardriving">Wardriving Export</string>
+    
+    <string name="perm_required_title">Berechtigungen erforderlich</string>
+    <string name="perm_required_desc">Standort-Berechtigung wird für den WLAN-Scan benötigt.</string>
+    <string name="perm_grant_btn">Berechtigungen erteilen</string>
+    
+    <string name="wifi_disabled_warn">WLAN ist deaktiviert. Bitte WLAN einschalten.</string>
+    <string name="wifi_none_found">Keine Netzwerke gefunden.\nVersuche es erneut.</string>
+    <string name="wifi_prompt_scan">Tippe auf \"Scannen\" um\nWLAN-Netzwerke zu finden.</string>
+    
+    <string name="section_connected">VERBUNDEN</string>
+    <string name="section_in_range">IN REICHWEITE</string>
 </resources>

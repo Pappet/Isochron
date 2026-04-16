@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ScannerApp</string>
+    <string name="title_network_scanner">Network Scanner</string>
+    
+    <!-- MainActivity Tabs -->
+    <string name="tab_wlan">WiFi</string>
+    <string name="tab_bluetooth">Bluetooth</string>
+    <string name="tab_lan">LAN</string>
+    <string name="tab_monitor">Monitor</string>
+    <string name="tab_inventory">Inventory</string>
+    
+    <!-- MainActivity Actions -->
+    <string name="action_security_audit">Security Audit</string>
+    <string name="action_export">Export</string>
+    <string name="action_channel_analysis">Channel Analysis</string>
+
+    <!-- WifiScreen -->
+    <string name="wifi_networks">WiFi Networks</string>
+    <string name="wifi_found_short">%1$d found</string>
+    <string name="wifi_connected_part"> · %1$d connected</string>
+    <string name="wifi_wps_part"> · %1$d WPS</string>
+    
+    <string name="btn_scan">Scan</string>
+    <string name="btn_scanning">Scanning...</string>
+    
+    <string name="gps_geotagging">GPS Geotagging</string>
+    <string name="gps_stats">GPS · %1$d entries · %2$d networks</string>
+    
+    <string name="export_short">Export</string>
+    <string name="export_wardriving">Wardriving Export</string>
+    
+    <string name="perm_required_title">Permissions Required</string>
+    <string name="perm_required_desc">Location permission is required for WiFi scanning.</string>
+    <string name="perm_grant_btn">Grant Permissions</string>
+    
+    <string name="wifi_disabled_warn">WiFi is disabled. Please turn on WiFi.</string>
+    <string name="wifi_none_found">No networks found.\nPlease try again.</string>
+    <string name="wifi_prompt_scan">Tap \"Scan\" to\nfind WiFi networks.</string>
+    
+    <string name="section_connected">CONNECTED</string>
+    <string name="section_in_range">IN RANGE</string>
+</resources>

@@ -36,6 +36,7 @@ fun BleDetailScreen() {
     val context = LocalContext.current
     val btScanner = remember { BluetoothScanner(context) }
     val gattExplorer = remember { GattExplorer(context) }
+    val repository = remember { com.scanner.app.data.repository.DeviceRepository(context) }
 
     var scannedDevices by remember { mutableStateOf<List<com.scanner.app.data.BluetoothDevice>>(emptyList()) }
     var isScanning by remember { mutableStateOf(false) }
@@ -51,6 +52,13 @@ fun BleDetailScreen() {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
+
+    LaunchedEffect(gattState.connectionState, selectedAddress) {
+        if (gattState.connectionState == ConnectionState.READY && selectedAddress != null) {
+            val json = buildGattJson(gattState)
+            repository.persistGattData(selectedAddress!!, json)
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -668,7 +676,7 @@ private fun buildGattJson(state: GattExplorerState): String {
 
     root.put("device", org.json.JSONObject().apply {
         put("name", state.deviceName ?: "Unknown")
-        put("address", state.deviceAddress ?: "")
+        put("address", state.deviceAddress)
         state.rssi?.let { put("rssi", it) }
         put("connectionState", state.connectionState.name)
     })

@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.scanner.app.R
 import com.scanner.app.ui.screens.*
 import com.scanner.app.ui.theme.ScannerAppTheme
 import kotlinx.coroutines.launch
@@ -42,11 +44,11 @@ fun ScannerApp() {
     var showExportDialog by remember { mutableStateOf(false) }
 
     val bottomTabs = listOf(
-        TabItem("WLAN", Icons.Outlined.Wifi),
-        TabItem("Bluetooth", Icons.Outlined.Bluetooth),
-        TabItem("LAN", Icons.Outlined.Lan),
-        TabItem("Monitor", Icons.Outlined.MonitorHeart),
-        TabItem("Inventar", Icons.Outlined.Inventory2)
+        TabItem(stringResource(R.string.tab_wlan), Icons.Outlined.Wifi),
+        TabItem(stringResource(R.string.tab_bluetooth), Icons.Outlined.Bluetooth),
+        TabItem(stringResource(R.string.tab_lan), Icons.Outlined.Lan),
+        TabItem(stringResource(R.string.tab_monitor), Icons.Outlined.MonitorHeart),
+        TabItem(stringResource(R.string.tab_inventory), Icons.Outlined.Inventory2)
     )
 
     // Export Dialog
@@ -61,7 +63,7 @@ fun ScannerApp() {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Netzwerk-Scanner",
+                        text = stringResource(R.string.title_network_scanner),
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -74,7 +76,7 @@ fun ScannerApp() {
                     }) {
                         Icon(
                             Icons.Outlined.Shield,
-                            contentDescription = "Security Audit",
+                            contentDescription = stringResource(R.string.action_security_audit),
                             tint = if (pagerState.currentPage == 6)
                                 MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
@@ -84,7 +86,7 @@ fun ScannerApp() {
                     IconButton(onClick = { showExportDialog = true }) {
                         Icon(
                             Icons.Outlined.FileDownload,
-                            contentDescription = "Exportieren",
+                            contentDescription = stringResource(R.string.action_export),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -96,7 +98,7 @@ fun ScannerApp() {
                     }) {
                         Icon(
                             Icons.Outlined.BarChart,
-                            contentDescription = "Kanalanalyse",
+                            contentDescription = stringResource(R.string.action_channel_analysis),
                             tint = if (pagerState.currentPage == 5)
                                 MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant

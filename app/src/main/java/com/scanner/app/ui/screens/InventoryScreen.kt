@@ -115,6 +115,7 @@ fun InventoryScreen(
                         isSearchActive = false
                         searchQuery = ""
                     }) {
+                        @Suppress("DEPRECATION")
                         Icon(Icons.Default.ArrowBack, contentDescription = "Zurück")
                     }
                 },
@@ -216,8 +217,7 @@ fun InventoryScreen(
                         onEdit = { editDialogDevice = device },
                         onDelete = {
                             scope.launch { repository.deleteDevice(device.id) }
-                        },
-                        onClick = { onNavigateToDevice?.invoke(device.id) }
+                        }
                     )
                 }
                 item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -249,8 +249,7 @@ fun InventoryDeviceCard(
     device: DiscoveredDeviceEntity,
     onToggleFavorite: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onClick: () -> Unit
+    onDelete: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
@@ -474,6 +473,17 @@ fun InventoryDeviceCard(
                             meta.optInt("channel", 0).takeIf { it > 0 }?.let { MetaRow("Kanal", "$it") }
                             meta.optString("band").takeIf { it.isNotBlank() }?.let { MetaRow("Band", it) }
                             meta.optString("security").takeIf { it.isNotBlank() }?.let { MetaRow("Sicherheit", it) }
+                            if (meta.optBoolean("wpsEnabled")) MetaRow("WPS", "Aktiviert")
+                            meta.optString("rawCapabilities").takeIf { it.isNotBlank() }?.let { MetaRow("Fähigkeiten", it) }
+
+                            val lat = meta.optDouble("latitude", Double.NaN)
+                            val lon = meta.optDouble("longitude", Double.NaN)
+                            if (!lat.isNaN() && !lon.isNaN()) {
+                                MetaRow("GPS", "%.6f, %.6f".format(lat, lon))
+                                val alt = meta.optDouble("altitude", Double.NaN)
+                                if (!alt.isNaN()) MetaRow("Höhe", "%.1f m".format(alt))
+                            }
+
                             if (meta.optBoolean("isConnected")) MetaRow("Status", "Verbunden")
                         }
 
@@ -493,6 +503,27 @@ fun InventoryDeviceCard(
                                 })
                             }
                             if (meta.optBoolean("isConnected")) MetaRow("Status", "Verbunden")
+
+                            val gattData = meta.optJSONObject("gattData")
+                            if (gattData != null) {
+                                val services = gattData.optJSONArray("services")
+                                if (services != null && services.length() > 0) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "GATT-DIENSTE (${services.length()})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    for (i in 0 until services.length()) {
+                                        val svc = services.optJSONObject(i) ?: continue
+                                        val name = svc.optString("name", "Unbekannt")
+                                        val charsArr = svc.optJSONArray("characteristics")
+                                        val charsCount = charsArr?.length() ?: 0
+                                        MetaRow(name, "$charsCount CHRs")
+                                    }
+                                }
+                            }
                         }
 
                         DeviceCategory.LAN -> {

@@ -19,9 +19,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import com.scanner.app.R
 import com.scanner.app.data.WifiNetwork
 import com.scanner.app.data.repository.DeviceRepository
 import com.scanner.app.ui.components.WifiNetworkCard
+import com.scanner.app.ui.theme.ScannerAppTheme
 import com.scanner.app.util.WardrivingTracker
 import com.scanner.app.util.WifiScanner
 import kotlinx.coroutines.launch
@@ -84,7 +88,8 @@ fun WifiScreen() {
                     try {
                         repository.persistWifiScan(
                             networks = results,
-                            durationMs = System.currentTimeMillis() - startTime
+                            durationMs = System.currentTimeMillis() - startTime,
+                            location = if (gpsEnabled) wardrivingTracker.getCurrentLocation() else null
                         )
                     } catch (e: Exception) {
                         android.util.Log.e("WifiScreen", "Error persisting scan", e)
@@ -105,7 +110,7 @@ fun WifiScreen() {
         ) {
             Column {
                 Text(
-                    text = "WLAN-Netzwerke",
+                    text = stringResource(R.string.wifi_networks),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -114,9 +119,9 @@ fun WifiScreen() {
                     val wpsCount = networks.count { it.wpsEnabled }
                     Text(
                         text = buildString {
-                            append("${networks.size} gefunden")
-                            if (connected > 0) append(" · $connected verbunden")
-                            if (wpsCount > 0) append(" · $wpsCount WPS")
+                            append(stringResource(R.string.wifi_found_short, networks.size))
+                            if (connected > 0) append(stringResource(R.string.wifi_connected_part, connected))
+                            if (wpsCount > 0) append(stringResource(R.string.wifi_wps_part, wpsCount))
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -140,10 +145,10 @@ fun WifiScreen() {
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Scannen")
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.btn_scan))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isScanning) "Scanne..." else "Scannen")
+                Text(if (isScanning) stringResource(R.string.btn_scanning) else stringResource(R.string.btn_scan))
             }
         }
 
@@ -167,8 +172,8 @@ fun WifiScreen() {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (gpsEnabled && geoTagCount > 0)
-                        "GPS · $geoTagCount Einträge · $uniqueGeoNetworks Netzwerke"
-                    else "GPS-Geotagging",
+                        stringResource(R.string.gps_stats, geoTagCount, uniqueGeoNetworks)
+                    else stringResource(R.string.gps_geotagging),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (gpsEnabled) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -201,7 +206,7 @@ fun WifiScreen() {
                                         )
                                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                    context.startActivity(android.content.Intent.createChooser(intent, "Wardriving Export"))
+                                    context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.export_wardriving)))
                                 } catch (e: Exception) {
                                     android.util.Log.e("WifiScreen", "Export error", e)
                                 }
@@ -211,7 +216,7 @@ fun WifiScreen() {
                     ) {
                         Icon(
                             Icons.Outlined.FileDownload,
-                            contentDescription = "Export",
+                            contentDescription = stringResource(R.string.export_short),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -244,13 +249,13 @@ fun WifiScreen() {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Berechtigungen erforderlich",
+                        text = stringResource(R.string.perm_required_title),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Standort-Berechtigung wird für den WLAN-Scan benötigt.",
+                        text = stringResource(R.string.perm_required_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                     )
@@ -261,7 +266,7 @@ fun WifiScreen() {
                             containerColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text("Berechtigungen erteilen")
+                        Text(stringResource(R.string.perm_grant_btn))
                     }
                 }
             }
@@ -289,7 +294,7 @@ fun WifiScreen() {
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "WLAN ist deaktiviert. Bitte WLAN einschalten.",
+                        text = stringResource(R.string.wifi_disabled_warn),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
@@ -307,7 +312,7 @@ fun WifiScreen() {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Keine Netzwerke gefunden.\nVersuche es erneut.",
+                    text = stringResource(R.string.wifi_none_found),
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -321,7 +326,7 @@ fun WifiScreen() {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Tippe auf \"Scannen\" um\nWLAN-Netzwerke zu finden.",
+                    text = stringResource(R.string.wifi_prompt_scan),
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -339,7 +344,7 @@ fun WifiScreen() {
                 if (connected.isNotEmpty()) {
                     item {
                         Text(
-                            text = "VERBUNDEN",
+                            text = stringResource(R.string.section_connected),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -353,7 +358,7 @@ fun WifiScreen() {
                 if (others.isNotEmpty()) {
                     item {
                         Text(
-                            text = "IN REICHWEITE",
+                            text = stringResource(R.string.section_in_range),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -367,5 +372,13 @@ fun WifiScreen() {
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewWifiScreen() {
+    ScannerAppTheme {
+        WifiScreen()
     }
 }
