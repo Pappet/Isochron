@@ -1,0 +1,578 @@
+package com.scanner.app.util
+
+/**
+ * OUI (Organizationally Unique Identifier) lookup for MAC address vendor identification.
+ * Maps the first 3 bytes (6 hex chars) of a MAC address to the manufacturer name.
+ */
+object MacVendorLookup {
+
+    /**
+     * Look up vendor name by MAC address.
+     * @param mac MAC address in format "AA:BB:CC:DD:EE:FF" or "AA-BB-CC-DD-EE-FF"
+     * @return Vendor name or null if not found
+     */
+    fun lookup(mac: String): String? {
+        val prefix = mac.uppercase()
+            .replace("-", ":")
+            .split(":")
+            .take(3)
+            .joinToString(":")
+        return OUI_MAP[prefix]
+    }
+
+    /**
+     * Get a short vendor label (max ~12 chars).
+     */
+    fun shortName(mac: String): String? {
+        val vendor = lookup(mac) ?: return null
+        return when {
+            vendor.length <= 14 -> vendor
+            vendor.contains("Apple") -> "Apple"
+            vendor.contains("Samsung") -> "Samsung"
+            vendor.contains("Huawei") || vendor.contains("HUAWEI") -> "Huawei"
+            vendor.contains("Intel") -> "Intel"
+            vendor.contains("Raspberry") -> "Raspberry Pi"
+            vendor.contains("Google") -> "Google"
+            vendor.contains("Amazon") -> "Amazon"
+            vendor.contains("Microsoft") -> "Microsoft"
+            vendor.contains("Dell") -> "Dell"
+            vendor.contains("Lenovo") -> "Lenovo"
+            vendor.contains("Hewlett") || vendor.contains("HP ") -> "HP"
+            vendor.contains("Cisco") -> "Cisco"
+            vendor.contains("TP-Link") || vendor.contains("TP-LINK") -> "TP-Link"
+            vendor.contains("Netgear") || vendor.contains("NETGEAR") -> "Netgear"
+            vendor.contains("AsusTek") || vendor.contains("ASUSTek") -> "ASUS"
+            vendor.contains("Sony") -> "Sony"
+            vendor.contains("LG") -> "LG"
+            vendor.contains("Xiaomi") -> "Xiaomi"
+            vendor.contains("Synology") -> "Synology"
+            vendor.contains("QNAP") -> "QNAP"
+            vendor.contains("Ubiquiti") -> "Ubiquiti"
+            vendor.contains("Espressif") -> "ESP32/ESP8266"
+            vendor.contains("Broadcom") -> "Broadcom"
+            vendor.contains("Qualcomm") -> "Qualcomm"
+            vendor.contains("Realtek") -> "Realtek"
+            vendor.contains("MediaTek") -> "MediaTek"
+            else -> vendor.take(14)
+        }
+    }
+
+    // Subset of IEEE OUI database — most common consumer/enterprise vendors
+    private val OUI_MAP = mapOf(
+        // Apple
+        "00:03:93" to "Apple",
+        "00:0A:27" to "Apple",
+        "00:0A:95" to "Apple",
+        "00:0D:93" to "Apple",
+        "00:11:24" to "Apple",
+        "00:14:51" to "Apple",
+        "00:16:CB" to "Apple",
+        "00:17:F2" to "Apple",
+        "00:19:E3" to "Apple",
+        "00:1B:63" to "Apple",
+        "00:1C:B3" to "Apple",
+        "00:1D:4F" to "Apple",
+        "00:1E:52" to "Apple",
+        "00:1E:C2" to "Apple",
+        "00:1F:5B" to "Apple",
+        "00:1F:F3" to "Apple",
+        "00:21:E9" to "Apple",
+        "00:22:41" to "Apple",
+        "00:23:12" to "Apple",
+        "00:23:6C" to "Apple",
+        "00:23:DF" to "Apple",
+        "00:24:36" to "Apple",
+        "00:25:00" to "Apple",
+        "00:25:4B" to "Apple",
+        "00:25:BC" to "Apple",
+        "00:26:08" to "Apple",
+        "00:26:4A" to "Apple",
+        "00:26:B0" to "Apple",
+        "00:26:BB" to "Apple",
+        "00:50:E4" to "Apple",
+        "00:61:71" to "Apple",
+        "04:0C:CE" to "Apple",
+        "04:15:52" to "Apple",
+        "04:1E:64" to "Apple",
+        "04:26:65" to "Apple",
+        "04:48:9A" to "Apple",
+        "04:52:F3" to "Apple",
+        "04:DB:56" to "Apple",
+        "04:F1:3E" to "Apple",
+        "08:66:98" to "Apple",
+        "14:99:E2" to "Apple",
+        "18:AF:61" to "Apple",
+        "28:CF:E9" to "Apple",
+        "3C:15:C2" to "Apple",
+        "58:B0:35" to "Apple",
+        "70:DE:E2" to "Apple",
+        "78:7E:61" to "Apple",
+        "80:E6:50" to "Apple",
+        "84:FC:FE" to "Apple",
+        "8C:85:90" to "Apple",
+        "98:01:A7" to "Apple",
+        "A4:83:E7" to "Apple",
+        "AC:BC:32" to "Apple",
+        "B0:34:95" to "Apple",
+        "B8:17:C2" to "Apple",
+        "B8:C1:11" to "Apple",
+        "BC:52:B7" to "Apple",
+        "C8:69:CD" to "Apple",
+        "CC:20:E8" to "Apple",
+        "D4:61:9D" to "Apple",
+        "DC:2B:2A" to "Apple",
+        "E0:B9:BA" to "Apple",
+        "F0:18:98" to "Apple",
+
+        // Samsung
+        "00:07:AB" to "Samsung",
+        "00:12:47" to "Samsung",
+        "00:12:FB" to "Samsung",
+        "00:13:77" to "Samsung",
+        "00:15:99" to "Samsung",
+        "00:16:32" to "Samsung",
+        "00:17:D5" to "Samsung",
+        "00:17:C9" to "Samsung",
+        "00:18:AF" to "Samsung",
+        "00:1A:8A" to "Samsung",
+        "00:1B:98" to "Samsung",
+        "00:1C:43" to "Samsung",
+        "00:1D:25" to "Samsung",
+        "00:1E:E1" to "Samsung",
+        "00:1E:E2" to "Samsung",
+        "00:21:19" to "Samsung",
+        "00:21:D1" to "Samsung",
+        "00:21:D2" to "Samsung",
+        "00:24:54" to "Samsung",
+        "00:24:90" to "Samsung",
+        "00:24:91" to "Samsung",
+        "00:25:67" to "Samsung",
+        "00:26:37" to "Samsung",
+        "08:08:C2" to "Samsung",
+        "08:D4:2B" to "Samsung",
+        "10:1D:C0" to "Samsung",
+        "14:49:E0" to "Samsung",
+        "28:CC:01" to "Samsung",
+        "30:CD:A7" to "Samsung",
+        "34:23:BA" to "Samsung",
+        "40:0E:85" to "Samsung",
+        "4C:3C:16" to "Samsung",
+        "50:01:BB" to "Samsung",
+        "54:92:BE" to "Samsung",
+        "5C:3C:27" to "Samsung",
+        "78:47:1D" to "Samsung",
+        "84:25:DB" to "Samsung",
+        "8C:77:12" to "Samsung",
+        "94:35:0A" to "Samsung",
+        "98:52:B1" to "Samsung",
+        "A0:82:1F" to "Samsung",
+        "AC:5F:3E" to "Samsung",
+        "BC:D1:1F" to "Samsung",
+        "C4:42:02" to "Samsung",
+        "D0:22:BE" to "Samsung",
+        "E4:7C:F9" to "Samsung",
+        "F4:7B:5E" to "Samsung",
+        "FC:A1:3E" to "Samsung",
+
+        // Google
+        "00:1A:11" to "Google",
+        "3C:5A:B4" to "Google",
+        "54:60:09" to "Google",
+        "94:EB:2C" to "Google",
+        "A4:77:33" to "Google",
+        "F4:F5:D8" to "Google",
+        "F4:F5:E8" to "Google",
+
+        // Intel
+        "00:02:B3" to "Intel",
+        "00:03:47" to "Intel",
+        "00:04:23" to "Intel",
+        "00:07:E9" to "Intel",
+        "00:0C:F1" to "Intel",
+        "00:0E:0C" to "Intel",
+        "00:11:11" to "Intel",
+        "00:13:02" to "Intel",
+        "00:13:20" to "Intel",
+        "00:13:CE" to "Intel",
+        "00:13:E8" to "Intel",
+        "00:15:00" to "Intel",
+        "00:15:17" to "Intel",
+        "00:16:6F" to "Intel",
+        "00:16:76" to "Intel",
+        "00:16:EA" to "Intel",
+        "00:16:EB" to "Intel",
+        "00:18:DE" to "Intel",
+        "00:19:D1" to "Intel",
+        "00:1B:21" to "Intel",
+        "00:1B:77" to "Intel",
+        "00:1C:BF" to "Intel",
+        "00:1D:E0" to "Intel",
+        "00:1D:E1" to "Intel",
+        "00:1E:64" to "Intel",
+        "00:1E:65" to "Intel",
+        "00:1F:3B" to "Intel",
+        "00:1F:3C" to "Intel",
+        "00:22:FA" to "Intel",
+        "00:22:FB" to "Intel",
+        "00:24:D6" to "Intel",
+        "00:24:D7" to "Intel",
+        "00:27:10" to "Intel",
+
+        // Microsoft
+        "00:15:5D" to "Microsoft (Hyper-V)",
+        "00:17:FA" to "Microsoft",
+        "00:1D:D8" to "Microsoft",
+        "00:22:48" to "Microsoft",
+        "00:25:AE" to "Microsoft",
+        "00:50:F2" to "Microsoft",
+        "28:18:78" to "Microsoft",
+        "7C:1E:52" to "Microsoft",
+        "98:5F:D3" to "Microsoft",
+
+        // Raspberry Pi
+        "28:CD:C1" to "Raspberry Pi",
+        "B8:27:EB" to "Raspberry Pi",
+        "D8:3A:DD" to "Raspberry Pi",
+        "DC:A6:32" to "Raspberry Pi",
+        "E4:5F:01" to "Raspberry Pi",
+
+        // Network equipment
+        "00:00:0C" to "Cisco",
+        "00:01:42" to "Cisco",
+        "00:01:43" to "Cisco",
+        "00:01:63" to "Cisco",
+        "00:01:64" to "Cisco",
+        "00:01:96" to "Cisco",
+        "00:01:97" to "Cisco",
+        "00:02:3D" to "Cisco",
+        "00:02:4A" to "Cisco",
+        "00:02:4B" to "Cisco",
+        "00:02:7D" to "Cisco",
+        "00:02:7E" to "Cisco",
+        "00:02:B9" to "Cisco",
+        "00:02:BA" to "Cisco",
+        "00:02:FC" to "Cisco",
+        "00:02:FD" to "Cisco",
+
+        // TP-Link
+        "00:27:19" to "TP-Link",
+        "14:CC:20" to "TP-Link",
+        "18:A6:F7" to "TP-Link",
+        "1C:3B:F3" to "TP-Link",
+        "30:B5:C2" to "TP-Link",
+        "50:C7:BF" to "TP-Link",
+        "54:C8:0F" to "TP-Link",
+        "60:E3:27" to "TP-Link",
+        "64:70:02" to "TP-Link",
+        "74:DA:88" to "TP-Link",
+        "90:F6:52" to "TP-Link",
+        "A4:2B:B0" to "TP-Link",
+        "B0:95:75" to "TP-Link",
+        "C0:25:E9" to "TP-Link",
+        "C0:E4:2D" to "TP-Link",
+        "D8:07:B6" to "TP-Link",
+        "E8:DE:27" to "TP-Link",
+        "EC:08:6B" to "TP-Link",
+        "F4:F2:6D" to "TP-Link",
+
+        // Netgear
+        "00:09:5B" to "Netgear",
+        "00:0F:B5" to "Netgear",
+        "00:14:6C" to "Netgear",
+        "00:1B:2F" to "Netgear",
+        "00:1E:2A" to "Netgear",
+        "00:1F:33" to "Netgear",
+        "00:22:3F" to "Netgear",
+        "00:24:B2" to "Netgear",
+        "00:26:F2" to "Netgear",
+        "04:A1:51" to "Netgear",
+        "20:0C:C8" to "Netgear",
+        "28:80:88" to "Netgear",
+        "2C:B0:5D" to "Netgear",
+        "30:46:9A" to "Netgear",
+        "4C:60:DE" to "Netgear",
+        "6C:B0:CE" to "Netgear",
+        "84:1B:5E" to "Netgear",
+
+        // ASUS
+        "00:0C:6E" to "ASUSTek",
+        "00:0E:A6" to "ASUSTek",
+        "00:11:2F" to "ASUSTek",
+        "00:11:D8" to "ASUSTek",
+        "00:13:D4" to "ASUSTek",
+        "00:15:F2" to "ASUSTek",
+        "00:17:31" to "ASUSTek",
+        "00:18:F3" to "ASUSTek",
+        "00:1A:92" to "ASUSTek",
+        "00:1D:60" to "ASUSTek",
+        "00:1E:8C" to "ASUSTek",
+        "00:1F:C6" to "ASUSTek",
+        "00:22:15" to "ASUSTek",
+        "00:23:54" to "ASUSTek",
+        "00:24:8C" to "ASUSTek",
+        "00:25:22" to "ASUSTek",
+        "00:26:18" to "ASUSTek",
+        "04:D4:C4" to "ASUSTek",
+        "10:BF:48" to "ASUSTek",
+        "14:DD:A9" to "ASUSTek",
+        "1C:87:2C" to "ASUSTek",
+        "2C:4D:54" to "ASUSTek",
+        "2C:56:DC" to "ASUSTek",
+        "30:5A:3A" to "ASUSTek",
+
+        // HP
+        "00:01:E6" to "Hewlett-Packard",
+        "00:02:A5" to "Hewlett-Packard",
+        "00:04:EA" to "Hewlett-Packard",
+        "00:08:02" to "Hewlett-Packard",
+        "00:0A:57" to "Hewlett-Packard",
+        "00:0B:CD" to "Hewlett-Packard",
+        "00:0D:9D" to "Hewlett-Packard",
+        "00:0E:7F" to "Hewlett-Packard",
+        "00:0F:20" to "Hewlett-Packard",
+        "00:10:83" to "Hewlett-Packard",
+        "00:11:0A" to "Hewlett-Packard",
+        "00:11:85" to "Hewlett-Packard",
+        "00:12:79" to "Hewlett-Packard",
+        "00:13:21" to "Hewlett-Packard",
+        "00:14:38" to "Hewlett-Packard",
+        "00:14:C2" to "Hewlett-Packard",
+        "00:15:60" to "Hewlett-Packard",
+        "00:16:35" to "Hewlett-Packard",
+
+        // Dell
+        "00:06:5B" to "Dell",
+        "00:08:74" to "Dell",
+        "00:0B:DB" to "Dell",
+        "00:0D:56" to "Dell",
+        "00:0F:1F" to "Dell",
+        "00:11:43" to "Dell",
+        "00:12:3F" to "Dell",
+        "00:13:72" to "Dell",
+        "00:14:22" to "Dell",
+        "00:15:C5" to "Dell",
+        "00:16:F0" to "Dell",
+        "00:18:8B" to "Dell",
+        "00:19:B9" to "Dell",
+        "00:1A:A0" to "Dell",
+        "00:1C:23" to "Dell",
+        "00:1D:09" to "Dell",
+        "00:1E:4F" to "Dell",
+        "00:1E:C9" to "Dell",
+
+        // Lenovo
+        "00:06:1B" to "Lenovo",
+        "00:09:6B" to "Lenovo",
+        "00:0A:E4" to "Lenovo",
+        "00:12:FE" to "Lenovo",
+        "28:D2:44" to "Lenovo",
+        "40:B0:34" to "Lenovo",
+        "50:7B:9D" to "Lenovo",
+        "54:EE:75" to "Lenovo",
+        "70:F1:A1" to "Lenovo",
+        "98:FA:9B" to "Lenovo",
+        "C8:5B:76" to "Lenovo",
+
+        // Amazon
+        "00:FC:8B" to "Amazon",
+        "0C:47:C9" to "Amazon",
+        "10:CE:A9" to "Amazon",
+        "14:91:82" to "Amazon",
+        "18:74:2E" to "Amazon",
+        "34:D2:70" to "Amazon",
+        "40:B4:CD" to "Amazon",
+        "44:65:0D" to "Amazon",
+        "4C:EF:C0" to "Amazon",
+        "50:DC:E7" to "Amazon",
+        "68:37:E9" to "Amazon",
+        "68:54:FD" to "Amazon",
+        "74:C2:46" to "Amazon",
+        "84:D6:D0" to "Amazon",
+        "A0:02:DC" to "Amazon",
+        "AC:63:BE" to "Amazon",
+        "B4:7C:9C" to "Amazon",
+        "F0:27:2D" to "Amazon",
+        "F0:F0:A4" to "Amazon",
+        "FC:65:DE" to "Amazon",
+
+        // Ubiquiti
+        "00:15:6D" to "Ubiquiti",
+        "00:27:22" to "Ubiquiti",
+        "04:18:D6" to "Ubiquiti",
+        "18:E8:29" to "Ubiquiti",
+        "24:5A:4C" to "Ubiquiti",
+        "44:D9:E7" to "Ubiquiti",
+        "68:72:51" to "Ubiquiti",
+        "74:83:C2" to "Ubiquiti",
+        "78:8A:20" to "Ubiquiti",
+        "80:2A:A8" to "Ubiquiti",
+        "B4:FB:E4" to "Ubiquiti",
+        "F0:9F:C2" to "Ubiquiti",
+        "FC:EC:DA" to "Ubiquiti",
+
+        // Synology / NAS
+        "00:11:32" to "Synology",
+
+        // QNAP
+        "00:08:9B" to "QNAP",
+        "24:5E:BE" to "QNAP",
+
+        // Espressif (ESP32/ESP8266)
+        "10:52:1C" to "Espressif (ESP)",
+        "24:0A:C4" to "Espressif (ESP)",
+        "24:62:AB" to "Espressif (ESP)",
+        "24:6F:28" to "Espressif (ESP)",
+        "2C:F4:32" to "Espressif (ESP)",
+        "30:AE:A4" to "Espressif (ESP)",
+        "3C:61:05" to "Espressif (ESP)",
+        "3C:71:BF" to "Espressif (ESP)",
+        "40:F5:20" to "Espressif (ESP)",
+        "4C:11:AE" to "Espressif (ESP)",
+        "5C:CF:7F" to "Espressif (ESP)",
+        "60:01:94" to "Espressif (ESP)",
+        "68:C6:3A" to "Espressif (ESP)",
+        "84:0D:8E" to "Espressif (ESP)",
+        "84:CC:A8" to "Espressif (ESP)",
+        "84:F3:EB" to "Espressif (ESP)",
+        "8C:AA:B5" to "Espressif (ESP)",
+        "A0:20:A6" to "Espressif (ESP)",
+        "A4:7B:9D" to "Espressif (ESP)",
+        "A4:CF:12" to "Espressif (ESP)",
+        "AC:67:B2" to "Espressif (ESP)",
+        "B4:E6:2D" to "Espressif (ESP)",
+        "BC:DD:C2" to "Espressif (ESP)",
+        "C4:4F:33" to "Espressif (ESP)",
+        "C4:5B:BE" to "Espressif (ESP)",
+        "CC:50:E3" to "Espressif (ESP)",
+        "D8:A0:1D" to "Espressif (ESP)",
+        "DC:4F:22" to "Espressif (ESP)",
+        "EC:FA:BC" to "Espressif (ESP)",
+
+        // Xiaomi
+        "00:9E:C8" to "Xiaomi",
+        "04:CF:8C" to "Xiaomi",
+        "0C:1D:AF" to "Xiaomi",
+        "10:2A:B3" to "Xiaomi",
+        "14:F6:5A" to "Xiaomi",
+        "18:59:36" to "Xiaomi",
+        "20:82:C0" to "Xiaomi",
+        "28:6C:07" to "Xiaomi",
+        "34:80:B3" to "Xiaomi",
+        "38:A4:ED" to "Xiaomi",
+        "3C:BD:D8" to "Xiaomi",
+        "58:44:98" to "Xiaomi",
+        "64:09:80" to "Xiaomi",
+        "64:B4:73" to "Xiaomi",
+        "74:23:44" to "Xiaomi",
+        "7C:1D:D9" to "Xiaomi",
+        "8C:DE:F9" to "Xiaomi",
+        "98:FA:E3" to "Xiaomi",
+        "AC:C1:EE" to "Xiaomi",
+        "B0:E2:35" to "Xiaomi",
+        "F0:B4:29" to "Xiaomi",
+        "F8:A4:5F" to "Xiaomi",
+
+        // Huawei
+        "00:18:82" to "Huawei",
+        "00:1E:10" to "Huawei",
+        "00:25:68" to "Huawei",
+        "00:25:9E" to "Huawei",
+        "00:46:4B" to "Huawei",
+        "00:E0:FC" to "Huawei",
+        "04:02:1F" to "Huawei",
+        "04:B0:E7" to "Huawei",
+        "04:C0:6F" to "Huawei",
+        "04:F9:38" to "Huawei",
+        "08:19:A6" to "Huawei",
+        "0C:37:DC" to "Huawei",
+        "10:47:80" to "Huawei",
+        "14:B9:68" to "Huawei",
+        "20:08:ED" to "Huawei",
+        "20:A6:80" to "Huawei",
+        "24:09:95" to "Huawei",
+        "28:31:52" to "Huawei",
+        "28:3C:E4" to "Huawei",
+        "34:CD:BE" to "Huawei",
+        "48:46:FB" to "Huawei",
+        "48:AD:08" to "Huawei",
+        "4C:B1:6C" to "Huawei",
+        "54:A5:1B" to "Huawei",
+        "5C:C3:07" to "Huawei",
+        "5C:F9:6A" to "Huawei",
+        "60:DE:44" to "Huawei",
+        "70:72:3C" to "Huawei",
+        "78:D7:52" to "Huawei",
+        "80:B6:86" to "Huawei",
+        "84:A8:E4" to "Huawei",
+        "88:53:D4" to "Huawei",
+        "AC:85:3D" to "Huawei",
+        "C0:70:09" to "Huawei",
+        "CC:A2:23" to "Huawei",
+        "D4:6A:A8" to "Huawei",
+        "E0:24:7F" to "Huawei",
+        "F4:C7:14" to "Huawei",
+        "F8:01:13" to "Huawei",
+
+        // Sony
+        "00:01:4A" to "Sony",
+        "00:04:1F" to "Sony",
+        "00:13:A9" to "Sony",
+        "00:15:C1" to "Sony",
+        "00:19:63" to "Sony",
+        "00:1D:BA" to "Sony",
+        "00:1F:E4" to "Sony",
+        "00:24:BE" to "Sony",
+        "28:0D:FC" to "Sony",
+        "FC:0F:E6" to "Sony",
+
+        // Fritz!Box (AVM)
+        "00:1C:4A" to "AVM (Fritz!Box)",
+        "24:65:11" to "AVM (Fritz!Box)",
+        "34:31:C4" to "AVM (Fritz!Box)",
+        "3C:A6:2F" to "AVM (Fritz!Box)",
+        "B0:48:7A" to "AVM (Fritz!Box)",
+        "C8:0E:14" to "AVM (Fritz!Box)",
+        "CC:CE:1E" to "AVM (Fritz!Box)",
+        "E0:28:6D" to "AVM (Fritz!Box)",
+
+        // Sonos
+        "00:0E:58" to "Sonos",
+        "34:7E:5C" to "Sonos",
+        "48:A6:B8" to "Sonos",
+        "54:2A:1B" to "Sonos",
+        "5C:AA:FD" to "Sonos",
+        "78:28:CA" to "Sonos",
+        "94:9F:3E" to "Sonos",
+        "B8:E9:37" to "Sonos",
+
+        // Realtek (common in USB WiFi adapters)
+        "00:E0:4C" to "Realtek",
+        "48:5D:60" to "Realtek",
+        "52:54:00" to "Realtek/QEMU",
+
+        // VMware
+        "00:0C:29" to "VMware",
+        "00:50:56" to "VMware",
+
+        // LG
+        "00:1C:62" to "LG Electronics",
+        "00:1E:75" to "LG Electronics",
+        "00:1F:6B" to "LG Electronics",
+        "00:1F:E3" to "LG Electronics",
+        "00:22:A9" to "LG Electronics",
+        "00:24:83" to "LG Electronics",
+        "00:25:E5" to "LG Electronics",
+        "00:26:E2" to "LG Electronics",
+        "10:68:3F" to "LG Electronics",
+        "20:3D:BD" to "LG Electronics",
+        "30:8C:FB" to "LG Electronics",
+        "34:FC:EF" to "LG Electronics",
+        "40:B0:FA" to "LG Electronics",
+        "58:A2:B5" to "LG Electronics",
+        "64:89:9A" to "LG Electronics",
+        "88:C9:D0" to "LG Electronics",
+        "A8:16:B2" to "LG Electronics",
+        "C4:9A:02" to "LG Electronics",
+        "CC:FA:00" to "LG Electronics",
+    )
+}
