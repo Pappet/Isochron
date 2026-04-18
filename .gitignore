@@ -63,3 +63,6 @@ credentials.json
 apikey.properties
 
 .claude/
+
+# Extracted design handoff (source zip is tracked, extraction is local-only)
+docs/handoff-extracted/

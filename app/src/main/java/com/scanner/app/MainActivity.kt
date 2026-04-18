@@ -6,11 +6,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Bluetooth
@@ -97,18 +99,28 @@ fun ScannerApp() {
         ) {
             HorizontalPager(
                 state = pagerState,
-                beyondBoundsPageCount = SpectrumTabs.size - 1,
+                beyondBoundsPageCount = 1,
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
-                when (SpectrumTabs[page].key) {
-                    "wifi" -> WifiScreen()
-                    "ch" -> ChannelAnalysisScreen()
-                    "bt" -> BluetoothScreen()
-                    "lan" -> LanScreen()
-                    "mon" -> MonitorScreen()
-                    "sec" -> SecurityAuditScreen()
-                    "map" -> MapScreen()
-                    "inv" -> InventoryScreen()
+                // Opaque + clipped: prevents neighboring pages (notably the osmdroid
+                // MapView) from drawing into the visible page during transitions.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Spectrum.Surface)
+                        .clipToBounds(),
+                ) {
+                    val key = SpectrumTabs[page].key
+                    when (key) {
+                        "wifi" -> WifiScreen()
+                        "ch" -> ChannelAnalysisScreen()
+                        "bt" -> BluetoothScreen()
+                        "lan" -> LanScreen()
+                        "mon" -> MonitorScreen()
+                        "sec" -> SecurityAuditScreen()
+                        "map" -> MapScreen()
+                        "inv" -> InventoryScreen()
+                    }
                 }
             }
         }
