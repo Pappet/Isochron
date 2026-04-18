@@ -27,8 +27,11 @@ import androidx.compose.ui.unit.sp
 import com.scanner.app.util.ChannelInfo
 
 /**
- * Safe drawText wrapper — skips drawing if position would cause negative constraints.
+ * Safe drawText wrapper for [DrawScope].
+ * Skips drawing if position would cause negative constraints or out-of-bounds errors,
+ * preventing crashes during rapid UI scaling or animation.
  */
+@OptIn(ExperimentalGraphicsApi::class)
 private fun DrawScope.safeDrawText(
     textMeasurer: TextMeasurer,
     text: String,
@@ -45,7 +48,9 @@ private fun DrawScope.safeDrawText(
 }
 
 /**
- * Bar chart showing network count per channel with overlap score coloring.
+ * Bar chart visualizing WiFi network density per channel.
+ * Uses the overlap score to colorize bars from green (free) to red (highly congested).
+ * Highlights the currently connected channel if provided.
  */
 @Composable
 fun ChannelBarChart(
@@ -113,7 +118,7 @@ fun ChannelBarChart(
                     }
                 }
 
-                // Bars
+
                 channels.forEachIndexed { index, ch ->
                     val x = index * (barWidth + barSpacing)
                     val barHeight = if (maxNetworks > 0) {
@@ -144,7 +149,7 @@ fun ChannelBarChart(
                         )
                     }
 
-                    // Network count on top of bar
+
                     if (ch.networkCount > 0) {
                         safeDrawText(
                             textMeasurer = textMeasurer,
@@ -161,7 +166,7 @@ fun ChannelBarChart(
                         )
                     }
 
-                    // Channel label
+
                     val labelText = "${ch.channel}"
                     safeDrawText(
                         textMeasurer = textMeasurer,
@@ -177,7 +182,7 @@ fun ChannelBarChart(
                         )
                     )
 
-                    // Connected indicator
+
                     if (isConnected) {
                         drawCircle(
                             color = connectedColor,
@@ -192,8 +197,9 @@ fun ChannelBarChart(
 }
 
 /**
- * Spectrum visualization showing WiFi networks as bell curves on the frequency axis.
- * Shows overlap between networks visually.
+ * Spectrum visualization rendering WiFi networks as bell curves on the frequency axis.
+ * Uses a cosine approximation to simulate standard signal envelopes and colorizes
+ * different networks for visual differentiation.
  */
 @Composable
 fun SpectrumView(
@@ -380,7 +386,7 @@ fun SpectrumView(
     }
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
+
 
 private fun overlapColor(score: Float): Color = when {
     score <= 0.2f -> Color(0xFF4CAF50)   // Green - free

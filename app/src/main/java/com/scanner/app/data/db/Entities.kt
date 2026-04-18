@@ -3,8 +3,9 @@ package com.scanner.app.data.db
 import androidx.room.*
 import java.time.Instant
 
-// ─── Enums ──────────────────────────────────────────────────────
-
+/**
+ * Broad categorization of discovered devices for UI grouping and database indexing.
+ */
 enum class DeviceCategory {
     WIFI,
     BT_CLASSIC,
@@ -29,6 +30,9 @@ enum class DeviceCategory {
     }
 }
 
+/**
+ * Types of scans supported by the application.
+ */
 enum class ScanType {
     WIFI,
     BLUETOOTH,
@@ -36,8 +40,10 @@ enum class ScanType {
     LAN
 }
 
-// ─── Discovered Device ──────────────────────────────────────────
-
+/**
+ * Persistent record of a discovered device (WiFi, Bluetooth, or LAN).
+ * Uniqueness is enforced on the [address] column.
+ */
 @Entity(
     tableName = "discovered_devices",
     indices = [
@@ -90,8 +96,9 @@ data class DiscoveredDeviceEntity(
     fun displayName(): String = customLabel ?: name
 }
 
-// ─── Scan Session ───────────────────────────────────────────────
-
+/**
+ * Represents a single scanning operation, used to group [SignalReadingEntity]s.
+ */
 @Entity(
     tableName = "scan_sessions",
     indices = [Index(value = ["timestamp"])]
@@ -113,8 +120,10 @@ data class ScanSessionEntity(
     val durationMs: Long? = null
 )
 
-// ─── Signal Reading (für Monitoring & Graphen) ──────────────────
-
+/**
+ * A time-stamped signal strength measurement for a specific device.
+ * Used for monitoring signal fluctuations over time and plotting charts.
+ */
 @Entity(
     tableName = "signal_readings",
     foreignKeys = [
@@ -154,8 +163,9 @@ data class SignalReadingEntity(
     val scanSessionId: Long? = null
 )
 
-// ─── Query Result POJOs ─────────────────────────────────────────
-
+/**
+ * Lightweight POJO for holding a device along with its total measurement count.
+ */
 data class DeviceWithReadingCount(
     @Embedded val device: DiscoveredDeviceEntity,
     @ColumnInfo(name = "reading_count") val readingCount: Int

@@ -11,16 +11,20 @@ import org.json.JSONObject
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/**
+ * Handles the persistence and retrieval of discovered devices and their signal history.
+ * Orchestrates metadata expansion into JSON and manages relationships between devices and scan sessions.
+ */
 class DeviceRepository(context: Context) {
-
     private val dao = AppDatabase.getInstance(context).deviceDao()
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Persist scan results
-    // ═══════════════════════════════════════════════════════════════
-
     /**
-     * Persist WiFi scan results: upsert devices, create session, record signal readings.
+     * Persists results from a WiFi scan.
+     * Starts a new scan session, updates metadata for all networks, and records signal readings.
+     *
+     * @param networks List of captured [WifiNetwork]s.
+     * @param durationMs Optional duration of the scan process.
+     * @param location Optional GPS coordinates for geo-tagging the scan.
      */
     suspend fun persistWifiScan(
         networks: List<WifiNetwork>,
@@ -89,7 +93,8 @@ class DeviceRepository(context: Context) {
     }
 
     /**
-     * Persist Bluetooth scan results.
+     * Persists results from a Bluetooth scan.
+     * Updates metadata (preserving existing GATT data) and records signal readings.
      */
     suspend fun persistBluetoothScan(
         devices: List<BluetoothDevice>,
@@ -158,10 +163,7 @@ class DeviceRepository(context: Context) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Device queries (exposed as Flow for Compose)
-    // ═══════════════════════════════════════════════════════════════
-
+    /** Returns an observable list of all discovered devices. */
     fun observeAllDevices(): Flow<List<DiscoveredDeviceEntity>> =
         dao.observeAllDevices()
 
@@ -189,9 +191,7 @@ class DeviceRepository(context: Context) {
     fun observeDeviceById(id: Long): Flow<DiscoveredDeviceEntity?> =
         dao.observeDeviceById(id)
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Device management
-    // ═══════════════════════════════════════════════════════════════
+
 
     suspend fun toggleFavorite(id: Long) {
         val device = dao.getDeviceById(id) ?: return
@@ -207,16 +207,12 @@ class DeviceRepository(context: Context) {
     suspend fun deleteDevice(id: Long) =
         dao.deleteDeviceById(id)
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Signal history
-    // ═══════════════════════════════════════════════════════════════
+
 
     fun observeSignalHistory(deviceId: Long, limit: Int = 360): Flow<List<SignalOverTime>> =
         dao.observeSignalHistory(deviceId, limit)
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Statistics
-    // ═══════════════════════════════════════════════════════════════
+
 
     fun observeTotalDeviceCount(): Flow<Int> = dao.observeTotalDeviceCount()
     fun observeWifiCount(): Flow<Int> = dao.observeWifiCount()
@@ -225,9 +221,7 @@ class DeviceRepository(context: Context) {
     suspend fun getTotalScanCount(): Int = dao.getTotalScanCount()
     suspend fun getDeviceCountByCategory(): List<CategoryCount> = dao.getDeviceCountByCategory()
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Maintenance
-    // ═══════════════════════════════════════════════════════════════
+
 
     /**
      * Delete signal readings older than N days to keep the DB lean.
@@ -240,10 +234,10 @@ class DeviceRepository(context: Context) {
     fun observeScanSessions(): Flow<List<ScanSessionEntity>> =
         dao.observeAllSessions()
 
-    // ═══════════════════════════════════════════════════════════════
-    //  LAN Device persistence
-    // ═══════════════════════════════════════════════════════════════
-
+    /**
+     * Persists results from a LAN scan (Network Discovery).
+     * Enriches metadata with IP, hostnames, UPnP info, and OUI lookups.
+     */
     suspend fun persistLanScan(devices: List<com.scanner.app.util.LanDevice>) {
         dao.insertScanSession(
             ScanSessionEntity(
@@ -308,6 +302,9 @@ class DeviceRepository(context: Context) {
         }
     }
 
+    /**
+     * Appends port scan results (open ports, service banners) to an existing LAN device's metadata.
+     */
     suspend fun persistPortScanResults(
         ip: String,
         results: List<com.scanner.app.util.PortScanResult>
@@ -338,6 +335,10 @@ class DeviceRepository(context: Context) {
         dao.updateDevice(device.copy(metadata = existingMeta.toString()))
     }
 
+    /**
+     * Persists deep GATT metadata collected from a specific BLE connection.
+     * Merges the JSON data into the device's existing metadata store.
+     */
     suspend fun persistGattData(address: String, gattJsonStr: String) {
         val existing = dao.getDeviceByAddress(address)
         val existingMeta = try {

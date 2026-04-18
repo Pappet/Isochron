@@ -19,6 +19,12 @@ import com.scanner.app.data.BluetoothDevice
 import com.scanner.app.data.BondState
 import com.scanner.app.data.DeviceType
 
+/**
+ * Utility class for scanning Bluetooth devices (both Classic and Low Energy).
+ * Consolidates results from [BluetoothAdapter.startDiscovery] and [BluetoothLeScanner.startScan].
+ *
+ * @property context The application context used for OS service access and receiver registration.
+ */
 @SuppressLint("MissingPermission")
 class BluetoothScanner(private val context: Context) {
 
@@ -43,8 +49,12 @@ class BluetoothScanner(private val context: Context) {
     private var stopRunnable: Runnable? = null
 
     /**
-     * Start scanning for both Classic and BLE devices.
-     * Safe to call without permissions — will return empty results.
+     * Starts a combined Classic and BLE scan for a specified duration.
+     * Bonded devices are added immediately.
+     *
+     * @param durationMs Length of the scan in milliseconds.
+     * @param onProgress Callback invoked periodically with updated device list during the scan.
+     * @param onComplete Callback invoked when the scan duration expires, returning the final sorted list.
      */
     fun startScan(
         durationMs: Long = 12_000L,
@@ -89,6 +99,10 @@ class BluetoothScanner(private val context: Context) {
         handler.postDelayed(stopRunnable!!, durationMs)
     }
 
+    /**
+     * Forcefully stops any ongoing Classic discovery or BLE scan.
+     * Unregisters internal receivers and clears callbacks.
+     */
     fun stopScan() {
         stopRunnable?.let { handler.removeCallbacks(it) }
         stopRunnable = null
@@ -123,6 +137,9 @@ class BluetoothScanner(private val context: Context) {
         bleCallback = null
     }
 
+    /**
+     * Checks if the Bluetooth adapter is currently enabled.
+     */
     fun isBluetoothEnabled(): Boolean {
         return try {
             bluetoothAdapter?.isEnabled == true
@@ -131,8 +148,14 @@ class BluetoothScanner(private val context: Context) {
         }
     }
 
+    /**
+     * Checks if the device has a Bluetooth adapter available.
+     */
     fun hasBluetoothSupport(): Boolean = bluetoothAdapter != null
 
+    /**
+     * Retrieves a list of currently bonded (paired) devices.
+     */
     fun getBondedDevices(): List<BluetoothDevice> {
         return try {
             bluetoothAdapter?.bondedDevices?.mapNotNull { device ->
@@ -163,12 +186,15 @@ class BluetoothScanner(private val context: Context) {
         }
     }
 
+    /**
+     * Stops any active scans and clears the main thread handler.
+     */
     fun cleanup() {
         stopScan()
         handler.removeCallbacksAndMessages(null)
     }
 
-    // --- Private Methods ---
+
 
     private fun addBondedDevices() {
         getBondedDevices().forEach { device ->

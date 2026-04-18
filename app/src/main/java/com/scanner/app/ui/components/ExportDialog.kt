@@ -27,6 +27,13 @@ import com.scanner.app.util.ExportFormat
 import com.scanner.app.util.ExportManager
 import kotlinx.coroutines.launch
 
+/**
+ * Dialog for configuring and initiating data exports.
+ * Supports multiple formats (CSV, JSON, PDF) and filters for device category,
+ * favorite status, and discovery time range.
+ *
+ * @param onDismiss Callback to close the dialog.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportDialog(
@@ -51,7 +58,7 @@ fun ExportDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Format selection
+
                 Text(
                     text = "Format",
                     style = MaterialTheme.typography.labelMedium,
@@ -80,7 +87,7 @@ fun ExportDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
 
-                // Filters
+
                 Text(
                     text = "Filter",
                     style = MaterialTheme.typography.labelMedium,
@@ -101,7 +108,7 @@ fun ExportDialog(
                     )
                 }
 
-                // Favorites toggle
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -119,7 +126,7 @@ fun ExportDialog(
                     )
                 }
 
-                // Recent filter
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -156,7 +163,7 @@ fun ExportDialog(
                     }
                 }
 
-                // Format description
+
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -245,8 +252,11 @@ fun ExportDialog(
     )
 }
 
-// ─── Format Chip ────────────────────────────────────────────────
 
+
+/**
+ * Square chip for selecting an export format (CSV, JSON, PDF).
+ */
 @Composable
 fun FormatChip(
     format: ExportFormat,

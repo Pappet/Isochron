@@ -12,23 +12,33 @@ import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URL
 
+/**
+ * Represents the result of an ICMP [PingUtil.ping] or HTTP latency check.
+ */
 data class PingResult(
     val host: String,
-    val latencyMs: Float?,       // null = timeout
+    val latencyMs: Float?,       // Latency in milliseconds, null if timeout
     val isReachable: Boolean,
-    val packetLoss: Float = 0f,  // 0.0 - 1.0
-    val ttl: Int? = null
+    val packetLoss: Float = 0f,  // 0.0 (no loss) to 1.0 (total loss)
+    val ttl: Int? = null         // Time-to-Live value from the response
 )
 
+/**
+ * Snapshot of the current network connection status.
+ */
 data class NetworkInfo(
-    val gatewayIp: String?,
-    val deviceIp: String?,
-    val dns: String?,
-    val ssid: String?,
-    val linkSpeed: Int?,          // Mbps
-    val signalStrength: Int?      // dBm
+    val gatewayIp: String?,      // Default gateway (router) IP
+    val deviceIp: String?,       // Device's local IP address
+    val dns: String?,            // Primary DNS server IP
+    val ssid: String?,           // Connected WiFi SSID
+    val linkSpeed: Int?,         // Link speed in Mbps
+    val signalStrength: Int?     // Signal strength in dBm
 )
 
+/**
+ * Utility for performing network diagnostics like ICMP pings and HTTP latency checks.
+ * Also provides information about the current network configuration.
+ */
 class PingUtil(private val context: Context) {
 
     private val wifiManager: WifiManager? =
@@ -37,8 +47,13 @@ class PingUtil(private val context: Context) {
         } catch (_: Exception) { null }
 
     /**
-     * Ping a host using the system ping command.
-     * Returns a PingResult with latency and reachability.
+     * Pings a host using the system's native 'ping' command.
+     * Parses the command-line output to extract latency, packet loss, and TTL.
+     *
+     * @param host IP address or hostname to ping.
+     * @param count Number of echo requests to send.
+     * @param timeoutSec Timeout in seconds for each request.
+     * @return A [PingResult] containing diagnostic data.
      */
     suspend fun ping(host: String, count: Int = 3, timeoutSec: Int = 5): PingResult =
         withContext(Dispatchers.IO) {
@@ -64,7 +79,8 @@ class PingUtil(private val context: Context) {
         }
 
     /**
-     * Quick reachability check via InetAddress.
+     * Performs a fast reachability check using [InetAddress.isReachable].
+     * Note: This may fail if ICMP is blocked or restricted by the OS.
      */
     suspend fun isReachable(host: String, timeoutMs: Int = 3000): Boolean =
         withContext(Dispatchers.IO) {
@@ -76,7 +92,8 @@ class PingUtil(private val context: Context) {
         }
 
     /**
-     * Measure HTTP latency to a URL (e.g., for internet connectivity check).
+     * Measures HTTP ROUND-TRIP latency to a specific URL using a HEAD request.
+     * Useful for verifying internet connectivity when ICMP (ping) is blocked.
      */
     suspend fun httpLatency(urlString: String = "https://www.google.com"): PingResult =
         withContext(Dispatchers.IO) {
@@ -107,7 +124,8 @@ class PingUtil(private val context: Context) {
         }
 
     /**
-     * Get current network information (gateway, IP, DNS, etc.)
+     * Retrieves current WiFi network details including gateway, local IP, and DNS.
+     * Uses [WifiManager.getDhcpInfo] and [WifiManager.getConnectionInfo].
      */
     @Suppress("DEPRECATION")
     fun getNetworkInfo(): NetworkInfo {
@@ -136,7 +154,7 @@ class PingUtil(private val context: Context) {
     }
 
     /**
-     * Check if we have internet connectivity.
+     * Checks for verified internet access using [ConnectivityManager].
      */
     fun hasInternetConnection(): Boolean {
         return try {

@@ -15,8 +15,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-// ─── Data Models ────────────────────────────────────────────────
-
+/**
+ * Represents a single WiFi network observation with geographic coordinates.
+ */
 data class WardrivingEntry(
         val ssid: String,
         val bssid: String,
@@ -31,8 +32,10 @@ data class WardrivingEntry(
         val timestamp: Instant
 )
 
-// ─── GPS Tracker ────────────────────────────────────────────────
-
+/**
+ * Manages GPS-tagged WiFi scanning sessions (wardriving).
+ * Records geographic coordinates for discovered networks and exports data in common formats.
+ */
 @SuppressLint("MissingPermission")
 class WardrivingTracker(private val context: Context) {
 
@@ -54,7 +57,10 @@ class WardrivingTracker(private val context: Context) {
     var isTracking: Boolean = false
         private set
 
-    /** Start GPS tracking for wardriving. */
+    /**
+     * Initializes the [LocationListener] and requests periodic updates from GPS or Network providers.
+     * Starts tracking the device's geographical position.
+     */
     fun startTracking() {
         if (isTracking) return
         if (locationManager == null) {
@@ -106,6 +112,10 @@ class WardrivingTracker(private val context: Context) {
         }
     }
 
+    /**
+     * Stops location updates and releases the [LocationListener].
+     * Should be called when the wardriving session ends.
+     */
     fun stopTracking() {
         locationListener?.let { listener ->
             try {
@@ -116,7 +126,10 @@ class WardrivingTracker(private val context: Context) {
         isTracking = false
     }
 
-    /** Record WiFi networks with current GPS position. */
+    /**
+     * Correlates a list of discovered WiFi networks with the most recent GPS location.
+     * New entries are added to the internal [entries] list.
+     */
     fun recordNetworks(networks: List<WifiNetwork>) {
         val location = lastLocation ?: return
 
@@ -149,9 +162,11 @@ class WardrivingTracker(private val context: Context) {
         entries.clear()
     }
 
-    // ─── Export Functions ────────────────────────────────────────
 
-    /** Export as WiGLE-compatible CSV. */
+
+    /**
+     * Exports all collected observations to a CSV file compatible with the WiGLE.net database format.
+     */
     fun exportWigleCsv(file: File) {
         FileOutputStream(file).bufferedWriter(Charsets.UTF_8).use { writer ->
             // WiGLE header
@@ -190,7 +205,10 @@ class WardrivingTracker(private val context: Context) {
         }
     }
 
-    /** Export as KML for Google Earth / Maps. */
+    /**
+     * Exports the strongest observation for each unique BSSID to a KML file for use in Google Earth/Maps.
+     * Color-codes placemarks based on security type (Open, WEP, WPA).
+     */
     fun exportKml(file: File) {
         val uniqueByBssid =
                 entries.groupBy { it.bssid }.mapValues { (_, v) ->
@@ -247,6 +265,9 @@ Sicherheit: ${entry.securityType}</description>
         }
     }
 
+    /**
+     * Stops any active tracking. Should be called during lifecycle teardown.
+     */
     fun cleanup() {
         stopTracking()
     }

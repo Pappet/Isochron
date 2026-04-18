@@ -31,6 +31,11 @@ import com.scanner.app.util.ChannelAnalyzer
 import com.scanner.app.util.ChannelRecommendation
 import com.scanner.app.util.WifiScanner
 
+/**
+ * Main screen for WiFi spectrum and channel congested analysis.
+ * Visualizes channel usage across 2.4 GHz and 5 GHz bands and provides
+ * scored recommendations for optimal router configuration.
+ */
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChannelAnalysisScreen() {
@@ -75,7 +80,7 @@ fun ChannelAnalysisScreen() {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // ─── Header ─────────────────────────────────────────────
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -119,7 +124,7 @@ fun ChannelAnalysisScreen() {
             }
         }
 
-        // ─── No data state ──────────────────────────────────────
+
         if (analysis == null) {
             Box(
                 modifier = Modifier
@@ -148,7 +153,7 @@ fun ChannelAnalysisScreen() {
 
         val a = analysis!!
 
-        // ─── Band selector ──────────────────────────────────────
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -175,7 +180,7 @@ fun ChannelAnalysisScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Connected info ─────────────────────────────────────
+
         a.connectedChannel?.let { ch ->
             val connectedBand = a.connectedBand ?: ""
             if ((selectedBand == 0 && connectedBand == "2.4 GHz") ||
@@ -213,7 +218,7 @@ fun ChannelAnalysisScreen() {
             }
         }
 
-        // ─── Channel bar chart ──────────────────────────────────
+
         val channels = if (selectedBand == 0) a.channels24 else a.channels5
         val connectedCh = if (
             (selectedBand == 0 && a.connectedBand == "2.4 GHz") ||
@@ -231,7 +236,7 @@ fun ChannelAnalysisScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Spectrum view ──────────────────────────────────────
+
         SpectrumView(
             channels = channels,
             band = if (selectedBand == 0) "2.4 GHz" else "5 GHz",
@@ -243,7 +248,7 @@ fun ChannelAnalysisScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Recommendations ────────────────────────────────────
+
         val recommendations = if (selectedBand == 0) a.recommendations24 else a.recommendations5
 
         if (recommendations.isNotEmpty()) {
@@ -268,7 +273,7 @@ fun ChannelAnalysisScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Legend ─────────────────────────────────────────────
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -306,8 +311,11 @@ fun ChannelAnalysisScreen() {
     }
 }
 
-// ─── Recommendation Card ────────────────────────────────────────
 
+
+/**
+ * UI component for displaying a specific channel recommendation with its score and rationale.
+ */
 @Composable
 fun RecommendationCard(
     recommendation: ChannelRecommendation,
@@ -412,8 +420,11 @@ fun RecommendationCard(
     }
 }
 
-// ─── Legend Item ─────────────────────────────────────────────────
 
+
+/**
+ * Small indicator for the spectrum legend.
+ */
 @Composable
 fun LegendItem(color: Color, text: String) {
     Row(

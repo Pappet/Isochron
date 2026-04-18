@@ -35,6 +35,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Screen for running comprehensive security audits.
+ * Orchestrates a multi-phase scan (WiFi, Bluetooth, Gateway Ports) and generates
+ * a prioritized list of security findings with recommendations.
+ */
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SecurityAuditScreen() {
@@ -170,7 +175,7 @@ fun SecurityAuditScreen() {
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 100.dp)
     ) {
-        // ─── Header ─────────────────────────────────────────────
+
         item {
             Row(
                 modifier = Modifier
@@ -208,7 +213,7 @@ fun SecurityAuditScreen() {
             }
         }
 
-        // ─── Progress ───────────────────────────────────────────
+
         if (isAuditing) {
             item {
                 portScanProgress?.let { p ->
@@ -231,7 +236,7 @@ fun SecurityAuditScreen() {
             }
         }
 
-        // ─── Score Card ─────────────────────────────────────────
+
         report?.let { r ->
             item {
                 ScoreCard(report = r, modifier = Modifier.padding(horizontal = 16.dp))
@@ -287,7 +292,7 @@ fun SecurityAuditScreen() {
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // ─── Findings List ──────────────────────────────────
+
             if (r.findings.isNotEmpty()) {
                 item {
                     Text(
@@ -306,7 +311,7 @@ fun SecurityAuditScreen() {
                 }
             }
 
-            // ─── Open Ports from Gateway Scan ───────────────────
+
             if (openPorts.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -323,7 +328,7 @@ fun SecurityAuditScreen() {
             }
         }
 
-        // ─── Empty State ────────────────────────────────────────
+
         if (report == null && !isAuditing) {
             item {
                 Box(
@@ -360,8 +365,11 @@ fun SecurityAuditScreen() {
     }
 }
 
-// ─── Score Card ─────────────────────────────────────────────────
 
+
+/**
+ * UI component for displaying the overall security score and grade.
+ */
 @Composable
 fun ScoreCard(report: SecurityAuditReport, modifier: Modifier = Modifier) {
     val scoreColor = when {
@@ -432,8 +440,11 @@ fun ScoreCard(report: SecurityAuditReport, modifier: Modifier = Modifier) {
     }
 }
 
-// ─── Finding Card ───────────────────────────────────────────────
 
+
+/**
+ * Expandable card displaying a specific security finding, its description, and a fix recommendation.
+ */
 @Composable
 fun FindingCard(finding: SecurityFinding, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
@@ -530,8 +541,11 @@ fun FindingCard(finding: SecurityFinding, modifier: Modifier = Modifier) {
     }
 }
 
-// ─── Port Card ──────────────────────────────────────────────────
 
+
+/**
+ * Renders an open port finding with risk assessment and service details.
+ */
 @Composable
 fun PortCard(port: PortScanResult, modifier: Modifier = Modifier) {
     val risk = WellKnownPorts.riskLevel(port.port)
@@ -608,6 +622,9 @@ fun PortCard(port: PortScanResult, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Small badge indicating the severity level of a finding.
+ */
 @Composable
 fun SeverityBadge(text: String, color: Color) {
     Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {

@@ -28,6 +28,12 @@ import com.scanner.app.util.BluetoothScanner
 import com.scanner.app.util.GattExplorer
 import kotlinx.coroutines.launch
 
+/**
+ * Main screen for discovered Bluetooth devices.
+ * Orchestrates scanning for both Classic and BLE devices via [BluetoothScanner],
+ * and deep GATT exploration via [GattExplorer].
+ * Manages runtime permissions for Bluetooth (Scan/Connect) and location across different API levels.
+ */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun BluetoothScreen() {
@@ -40,8 +46,6 @@ fun BluetoothScreen() {
     var devices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var isScanning by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
-
-    // GATT Explorer state
     var gattAddress by remember { mutableStateOf<String?>(null) }
     val gattState by gattExplorer.state.collectAsState()
 
@@ -59,14 +63,12 @@ fun BluetoothScreen() {
 
     val permissionState = rememberMultiplePermissionsState(permissions)
 
-    // Persist GATT data when connection becomes READY
     LaunchedEffect(gattState.connectionState, gattAddress) {
         if (gattState.connectionState == com.scanner.app.util.ConnectionState.READY && gattAddress != null) {
             val json = buildGattJson(gattState)
             repository.persistGattData(gattAddress!!, json)
         }
     }
-
     DisposableEffect(Unit) {
         onDispose {
             btScanner.cleanup()
@@ -74,7 +76,7 @@ fun BluetoothScreen() {
         }
     }
 
-    // ─── GATT Explorer Overlay ──────────────────────────────────
+
     if (gattAddress != null) {
         GattDetailView(
             state = gattState,
@@ -86,6 +88,10 @@ fun BluetoothScreen() {
         return // Show only the GATT view, hide the device list
     }
 
+    /**
+     * Triggers a Bluetooth scan using the [BluetoothScanner].
+     * Captures results in real-time, updates local state, and persists the final set to the repository.
+     */
     fun doScan() {
         if (!btScanner.isBluetoothEnabled()) return
         if (!permissionState.allPermissionsGranted) return
@@ -103,7 +109,7 @@ fun BluetoothScreen() {
                     isScanning = false
                     hasScanned = true
                 } catch (_: Exception) {}
-                // Persist to Room DB — safely check scope
+
                 try {
                     scope.launch {
                         try {
@@ -121,7 +127,7 @@ fun BluetoothScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,7 +177,7 @@ fun BluetoothScreen() {
             }
         }
 
-        // Permission warning
+
         if (!permissionState.allPermissionsGranted) {
             Card(
                 modifier = Modifier
@@ -207,7 +213,7 @@ fun BluetoothScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Bluetooth disabled
+
         if (!btScanner.isBluetoothEnabled()) {
             Card(
                 modifier = Modifier
@@ -237,7 +243,7 @@ fun BluetoothScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Device list
+
         if (devices.isEmpty() && hasScanned) {
             Box(
                 modifier = Modifier

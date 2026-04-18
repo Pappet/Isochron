@@ -26,8 +26,12 @@ import com.scanner.app.data.*
 import com.scanner.app.ui.theme.ScannerAppTheme
 import com.scanner.app.util.SignalHelper
 
-// ─── Signal Strength Bar ───────────────────────────────────────
-
+/**
+ * Animated signal strength indicator using a horizontal bar.
+ *
+ * @param fraction Value between 0.0 and 1.0 representing signal strength.
+ * @param modifier Modifier for the bar container.
+ */
 @Composable
 fun SignalBar(
     fraction: Float,
@@ -56,8 +60,10 @@ fun SignalBar(
     }
 }
 
-// ─── WiFi Network Card ─────────────────────────────────────────
-
+/**
+ * UI card displaying detailed information about a discovered WiFi network.
+ * Expandable to show BSSID, vendor, standard, frequency, and estimated distance.
+ */
 @Composable
 fun WifiNetworkCard(network: WifiNetwork) {
     var expanded by remember { mutableStateOf(false) }
@@ -182,8 +188,10 @@ fun WifiNetworkCard(network: WifiNetwork) {
     }
 }
 
-// ─── Bluetooth Device Card ──────────────────────────────────────
-
+/**
+ * UI card displaying information about a discovered Bluetooth device.
+ * Expandable to show MAC, device class, bond state, and GATT explorer triggers for BLE devices.
+ */
 @Composable
 fun BluetoothDeviceCard(
     device: BluetoothDevice,
@@ -329,8 +337,11 @@ fun BluetoothDeviceCard(
     }
 }
 
-// ─── Helper Composables ─────────────────────────────────────────
 
+
+/**
+ * Pill-shaped status indicator with custom color and label.
+ */
 @Composable
 fun StatusChip(text: String, color: Color) {
     Surface(
@@ -346,6 +357,10 @@ fun StatusChip(text: String, color: Color) {
     }
 }
 
+/**
+ * Icon-based security indicator for WiFi networks.
+ * Uses color highlights (red/orange) for insecure networks (Open/OWE).
+ */
 @Composable
 fun SecurityChip(security: String) {
     val color = when {
@@ -362,6 +377,9 @@ fun SecurityChip(security: String) {
     )
 }
 
+/**
+ * Standardized key-value row for expanded device details.
+ */
 @Composable
 fun DetailRow(label: String, value: String) {
     Row(
@@ -383,6 +401,9 @@ fun DetailRow(label: String, value: String) {
     }
 }
 
+/**
+ * Maps Bluetooth device classes to appropriate Material icons.
+ */
 private fun deviceIcon(deviceClass: String?): ImageVector = when (deviceClass) {
     "Computer" -> Icons.Outlined.Computer
     "Telefon" -> Icons.Outlined.PhoneAndroid

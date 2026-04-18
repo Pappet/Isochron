@@ -6,6 +6,10 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
+/**
+ * Main database for the ScannerApp.
+ * Persists discovered devices, scan sessions, and signal strength history.
+ */
 @Database(
     entities = [
         DiscoveredDeviceEntity::class,
@@ -25,15 +29,8 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         /**
-         * Add new migrations here whenever the schema version is bumped.
-         * Example:
-         *   val MIGRATION_1_2 = object : Migration(1, 2) {
-         *       override fun migrate(db: SupportSQLiteDatabase) {
-         *           db.execSQL("ALTER TABLE discovered_devices ADD COLUMN new_column TEXT")
-         *       }
-         *   }
+         * Returns the thread-safe singleton instance of the database.
          */
-
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(

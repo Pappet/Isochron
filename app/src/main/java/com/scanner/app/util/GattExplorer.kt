@@ -7,10 +7,13 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
-// ─── Data Models ────────────────────────────────────────────────
-
+/**
+ * Information about a GATT Service discovered on a BLE device.
+ */
 data class GattServiceInfo(
     val uuid: UUID,
     val name: String,
@@ -19,6 +22,9 @@ data class GattServiceInfo(
     val characteristics: List<GattCharacteristicInfo>
 )
 
+/**
+ * Information about a GATT Characteristic within a service.
+ */
 data class GattCharacteristicInfo(
     val uuid: UUID,
     val name: String,
@@ -36,6 +42,9 @@ data class GattCharacteristicInfo(
     override fun hashCode() = uuid.hashCode()
 }
 
+/**
+ * Information about a GATT Descriptor associated with a characteristic.
+ */
 data class GattDescriptorInfo(
     val uuid: UUID,
     val name: String,
@@ -49,6 +58,9 @@ data class GattDescriptorInfo(
     override fun hashCode() = uuid.hashCode()
 }
 
+/**
+ * Categories of properties a characteristic can have (Read, Write, etc.).
+ */
 enum class CharacteristicProperty(val label: String) {
     READ("Lesen"),
     WRITE("Schreiben"),
@@ -75,6 +87,9 @@ enum class CharacteristicProperty(val label: String) {
     }
 }
 
+/**
+ * Represents the current state of a [GattExplorer] session.
+ */
 data class GattExplorerState(
     val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
     val services: List<GattServiceInfo> = emptyList(),
@@ -87,6 +102,9 @@ data class GattExplorerState(
     val readTotal: Int = 0
 )
 
+/**
+ * Possible connection and discovery states for BLE devices.
+ */
 enum class ConnectionState(val label: String) {
     DISCONNECTED("Getrennt"),
     CONNECTING("Verbinde..."),
@@ -97,8 +115,11 @@ enum class ConnectionState(val label: String) {
     FAILED("Fehlgeschlagen")
 }
 
-// ─── GATT Explorer ──────────────────────────────────────────────
-
+/**
+ * A utility class for exploring the GATT profile of a BLE device.
+ * It manages connection, service discovery, and reading characteristic values asynchronously.
+ * Uses a [Mutex] to serialize characteristic reads as required by the Bluetooth stack.
+ */
 @SuppressLint("MissingPermission")
 class GattExplorer(private val context: Context) {
 
@@ -108,12 +129,18 @@ class GattExplorer(private val context: Context) {
     private val _state = MutableStateFlow(GattExplorerState())
     val state: StateFlow<GattExplorerState> = _state.asStateFlow()
 
-    // Continuation for synchronizing async GATT callbacks
-    private var serviceDiscoveryContinuation: CompletableDeferred<Boolean>? = null
+    // Mutex ensures only one characteristic read is in-flight at a time.
+    // Without this, a second read request could overwrite readCharContinuation before
+    // the first read's onCharacteristicRead callback fires, causing the first await()
+    // to hang until timeout.
+    private val readCharLock = Mutex()
+    @Volatile
     private var readCharContinuation: CompletableDeferred<ByteArray?>? = null
+    private var serviceDiscoveryContinuation: CompletableDeferred<Boolean>? = null
 
     /**
-     * Connect to a BLE device by address, discover services, and read readable characteristics.
+     * Initiates a connection to a BLE device by its MAC address.
+     * Automatically triggers service discovery and characteristic reading upon successful connection.
      */
     fun connect(address: String) {
         disconnect()
@@ -154,6 +181,9 @@ class GattExplorer(private val context: Context) {
         }
     }
 
+    /**
+     * Disconnects from the current device and closes the GATT client.
+     */
     fun disconnect() {
         try {
             bluetoothGatt?.disconnect()
@@ -165,6 +195,9 @@ class GattExplorer(private val context: Context) {
         _state.value = GattExplorerState()
     }
 
+    /**
+     * Cleanup resources, disconnect, and cancel the internal coroutine scope.
+     */
     fun cleanup() {
         disconnect()
         scope.cancel()
@@ -331,22 +364,38 @@ class GattExplorer(private val context: Context) {
         )
     }
 
+    /**
+     * Asynchronously reads a GATT characteristic value.
+     * Uses a [Mutex] to ensure only one read request is active at a time, preventing protocol overlaps.
+     */
     private suspend fun readCharacteristic(
         gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic
     ): ByteArray? {
-        return try {
-            withTimeout(3000L) {
-                readCharContinuation = CompletableDeferred()
-                @Suppress("DEPRECATION")
-                gatt.readCharacteristic(characteristic)
-                readCharContinuation?.await()
+        // Mutex ensures that we don't start a second read before the first one completes.
+        // BLE stacks typically allow only one pending GATT operation per connection.
+        return readCharLock.withLock {
+            try {
+                withTimeout(3000L) {
+                    val deferred = CompletableDeferred<ByteArray?>()
+                    readCharContinuation = deferred
+                    @Suppress("DEPRECATION")
+                    gatt.readCharacteristic(characteristic)
+                    deferred.await()
+                }
+            } catch (_: Exception) {
+                null
+            } finally {
+                readCharContinuation = null
             }
-        } catch (_: Exception) {
-            null
         }
     }
 
+    /**
+     * Attempts to decode a raw [ByteArray] into a human-readable string.
+     * Supports UTF-8 strings, single bytes (as integers), and 16/32-bit little-endian integers.
+     * Falls back to a hex string if no common pattern is detected.
+     */
     private fun tryDecodeValue(bytes: ByteArray): String? {
         if (bytes.isEmpty()) return null
 

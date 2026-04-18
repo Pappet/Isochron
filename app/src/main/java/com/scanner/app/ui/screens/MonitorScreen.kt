@@ -33,6 +33,11 @@ import com.scanner.app.ui.components.SignalDataPoint
 import com.scanner.app.util.SignalHelper
 import java.time.Instant
 
+/**
+ * Monitoring screen for real-time tracking of network health.
+ * Binds to [ScanService] to display live WiFi signal strength and gateway/internet latency metrics.
+ * Provides controls for starting/stopping the background monitoring service.
+ */
 @Composable
 fun MonitorScreen() {
     val context = LocalContext.current
@@ -71,7 +76,7 @@ fun MonitorScreen() {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // ─── Header ─────────────────────────────────────────────
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,7 +132,7 @@ fun MonitorScreen() {
             }
         }
 
-        // ─── Interval selector ──────────────────────────────────
+
         if (!state.isRunning) {
             IntervalSelector(
                 selectedInterval = selectedInterval,
@@ -137,7 +142,7 @@ fun MonitorScreen() {
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // ─── Status cards ───────────────────────────────────────
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -179,7 +184,7 @@ fun MonitorScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── WiFi Signal Chart ──────────────────────────────────
+
         val signalDataPoints = remember(state.wifiSignalHistory) {
             state.wifiSignalHistory.map { (dbm, ts) ->
                 SignalDataPoint(value = dbm, timestamp = ts)
@@ -195,7 +200,7 @@ fun MonitorScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Gateway Latency Chart ──────────────────────────────
+
         LatencyChart(
             dataPoints = state.gatewayLatency,
             label = "Gateway-Latenz",
@@ -206,7 +211,7 @@ fun MonitorScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Internet Latency Chart ─────────────────────────────
+
         LatencyChart(
             dataPoints = state.internetLatency,
             label = "Internet-Latenz (8.8.8.8)",
@@ -217,7 +222,7 @@ fun MonitorScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Statistics card ────────────────────────────────────
+
         if (state.scanCount > 0) {
             Card(
                 modifier = Modifier
@@ -270,8 +275,11 @@ fun MonitorScreen() {
     }
 }
 
-// ─── Sub-components ─────────────────────────────────────────────
 
+
+/**
+ * UI component for selecting the background scan frequency.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IntervalSelector(
@@ -301,6 +309,9 @@ fun IntervalSelector(
     }
 }
 
+/**
+ * Status indicator displaying a metric (Signal, Latency) with an icon and label.
+ */
 @Composable
 fun StatusCard(
     icon: ImageVector,
@@ -351,6 +362,9 @@ fun StatusCard(
     }
 }
 
+/**
+ * Small key-value row for session statistics.
+ */
 @Composable
 fun StatRow(label: String, value: String) {
     Row(

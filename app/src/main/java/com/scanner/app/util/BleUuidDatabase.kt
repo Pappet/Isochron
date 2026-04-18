@@ -9,7 +9,8 @@ import java.util.UUID
 object BleUuidDatabase {
 
     /**
-     * Resolve a 16-bit or 128-bit UUID to a human-readable name.
+     * Resolves a BLE service UUID to a human-readable name.
+     * Supports standard Bluetooth SIG services and common vendor-registered member UUIDs.
      */
     fun serviceName(uuid: UUID): String {
         val short = extractShortUuid(uuid)
@@ -19,6 +20,7 @@ object BleUuidDatabase {
             else "Unbekannter Dienst (${formatUuid(uuid)})"
     }
 
+    /** Resolves a BLE characteristic UUID to its official name (e.g., "Battery Level"). */
     fun characteristicName(uuid: UUID): String {
         val short = extractShortUuid(uuid)
         return CHARACTERISTICS[short] ?: "Unbekannt (${formatUuid(uuid)})"
@@ -427,8 +429,9 @@ object BleUuidDatabase {
     }
 
     /**
-     * Estimate distance from RSSI and TX Power.
-     * Returns distance in meters (rough estimate).
+     * Estimates the physical distance (in meters) between the scanner and a BLE beacon.
+     * Uses an empirical path-loss model based on RSSI and factory-calibrated TX Power.
+     * Calculated value is an approximation and sensitive to environmental obstructions.
      */
     fun estimateDistance(rssi: Int, txPower: Int): Double {
         if (rssi == 0) return -1.0

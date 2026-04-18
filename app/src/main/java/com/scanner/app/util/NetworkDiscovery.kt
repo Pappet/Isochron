@@ -10,8 +10,9 @@ import java.io.InputStreamReader
 import java.net.InetAddress
 import java.time.Instant
 
-// ─── Data Models ────────────────────────────────────────────────
-
+/**
+ * Represents a device discovered on the Local Area Network (LAN).
+ */
 data class LanDevice(
     val ip: String,
     val mac: String?,
@@ -26,6 +27,9 @@ data class LanDevice(
     val upnpInfo: UpnpDeviceInfo? = null
 )
 
+/**
+ * Detailed information about a device discovered via UPnP/SSDP.
+ */
 data class UpnpDeviceInfo(
     val friendlyName: String?,
     val manufacturer: String?,
@@ -35,6 +39,9 @@ data class UpnpDeviceInfo(
     val services: List<String> = emptyList()
 )
 
+/**
+ * Represents a service (e.g., HTTP, SSH) discovered on a LAN device.
+ */
 data class LanService(
     val name: String,
     val type: String,
@@ -42,6 +49,9 @@ data class LanService(
     val host: String?
 )
 
+/**
+ * Methods used to discover devices on the network.
+ */
 enum class DiscoveryMethod {
     ARP,
     PING_SWEEP,
@@ -56,6 +66,9 @@ enum class DiscoveryMethod {
     }
 }
 
+/**
+ * UI state for tracking the progress of a LAN scan.
+ */
 data class LanScanProgress(
     val phase: String,
     val current: Int,
@@ -63,8 +76,10 @@ data class LanScanProgress(
     val devicesFound: Int
 )
 
-// ─── Network Discovery Engine ───────────────────────────────────
-
+/**
+ * Core engine for discovering devices on the local network.
+ * Employs multiple techniques: ARP table reading, ICMP ping sweeps, mDNS (Bonjour), and SSDP (UPnP).
+ */
 class NetworkDiscovery(private val context: Context) {
 
     private val pingUtil = PingUtil(context)
@@ -73,7 +88,12 @@ class NetworkDiscovery(private val context: Context) {
     private val activeListeners = mutableListOf<NsdManager.DiscoveryListener>()
 
     /**
-     * Full LAN scan: ARP table → ping sweep → mDNS discovery.
+     * Performs a comprehensive multi-phase LAN scan.
+     * Phases include: ARP table analysis, subnet ping sweep, NetBIOS resolution, mDNS discovery, and UPnP device lookup.
+     *
+     * @param onProgress Callback for UI progress updates.
+     * @param onDeviceFound Callback invoked whenever new devices are discovered or enriched with metadata.
+     * @return The final list of all discovered [LanDevice]s.
      */
     suspend fun fullScan(
         onProgress: (LanScanProgress) -> Unit,
@@ -132,6 +152,9 @@ class NetworkDiscovery(private val context: Context) {
         getDeviceList()
     }
 
+    /**
+     * Stops any ongoing asynchronous discovery processes (e.g., mDNS listeners).
+     */
     fun stopScan() {
         activeListeners.forEach { listener ->
             try {
@@ -141,18 +164,14 @@ class NetworkDiscovery(private val context: Context) {
         activeListeners.clear()
     }
 
-    // ─── ARP / Neighbor Table ─────────────────────────────────────
-
     /**
-     * Read MAC addresses from multiple sources:
-     * 1. /proc/net/arp (classic, works on Android <10 and some Android 10+)
-     * 2. `ip neigh show` command (works on many Android 10+ where /proc/net/arp is restricted)
-     * 3. `cat /proc/net/arp` via shell (sometimes bypasses file access restrictions)
+     * Populates the [discoveredDevices] map by reading the system's neighbor table (ARP cache).
+     * Attempts multiple techniques to bypass OS-level restrictions on `/proc/net/arp`.
      */
     private fun readArpTable(networkInfo: NetworkInfo) {
         val macMap = mutableMapOf<String, String>() // ip → mac
 
-        // Method 1: /proc/net/arp direct file read
+        // Method 1: Direct read from /proc/net/arp (Modern Android usually restricts this)
         try {
             val reader = BufferedReader(InputStreamReader(
                 java.io.FileInputStream("/proc/net/arp")
@@ -256,8 +275,10 @@ class NetworkDiscovery(private val context: Context) {
         }
     }
 
-    // ─── Ping Sweep ─────────────────────────────────────────────
-
+    /**
+     * Scans the subnet using ICMP Echo Requests (pings) to find active hosts.
+     * Processed in parallel batches for efficiency.
+     */
     private suspend fun pingSweep(
         subnet: String,
         onProgress: (LanScanProgress) -> Unit,
@@ -315,8 +336,10 @@ class NetworkDiscovery(private val context: Context) {
         }
     }
 
-    // ─── mDNS / NSD Discovery ───────────────────────────────────
-
+    /**
+     * Discovers services via mDNS (multicast DNS) using [NsdManager].
+     * Listens for common service types like HTTP, SMB, and specialized protocols (Google Cast, AirPlay).
+     */
     private suspend fun discoverMdnsServices(
         onDeviceFound: (List<LanDevice>) -> Unit
     ) = withContext(Dispatchers.Main) {
@@ -404,12 +427,9 @@ class NetworkDiscovery(private val context: Context) {
         }
     }
 
-    // ─── UPnP / SSDP Discovery ────────────────────────────────────
-
     /**
-     * Discover UPnP devices via SSDP (Simple Service Discovery Protocol).
-     * Sends M-SEARCH multicast to 239.255.255.250:1900 and parses responses.
-     * Then fetches the XML description URL for device details.
+     * Discovers UPnP devices via SSDP (Simple Service Discovery Protocol).
+     * Sends M-SEARCH multicast packets and parses the XML description of responding devices.
      */
     private suspend fun discoverUpnpDevices() = withContext(Dispatchers.IO) {
         try {
@@ -562,7 +582,7 @@ class NetworkDiscovery(private val context: Context) {
         } catch (_: Exception) { return null }
     }
 
-    // ─── Helpers ────────────────────────────────────────────────
+
 
     /**
      * Resolve NetBIOS names for all discovered devices via UDP port 137.

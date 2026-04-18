@@ -41,14 +41,17 @@ private fun DrawScope.safeDrawText(
     } catch (_: Exception) {}
 }
 
+/**
+ * Data structure representing a single measurement point for signal strength.
+ */
 data class SignalDataPoint(
     val value: Int,           // dBm
     val timestamp: Instant
 )
 
 /**
- * Live signal strength chart using Compose Canvas.
- * Shows signal history as a line graph with gradient fill.
+ * Real-time signal strength chart with smooth curve interpolation and gradient fill.
+ * Supports configurable display ranges and grid lines.
  */
 @Composable
 fun SignalChart(
@@ -103,7 +106,7 @@ fun SignalChart(
                     if (chartWidth <= 0f || chartHeight <= 0f) return@Canvas
                     val dbmRange = (maxDbm - minDbm).toFloat().coerceAtLeast(1f)
 
-                    // ─── Grid lines ─────────────────────────────
+
                     if (showGrid) {
                         val gridLevels = listOf(-30, -50, -70, -90)
                         for (level in gridLevels) {
@@ -132,7 +135,7 @@ fun SignalChart(
                         }
                     }
 
-                    // ─── Data line + gradient fill ──────────────
+
                     if (dataPoints.size >= 2) {
                         val path = Path()
                         val fillPath = Path()
@@ -203,7 +206,7 @@ fun SignalChart(
                         )
                     }
 
-                    // ─── Time labels ────────────────────────────
+
                     if (dataPoints.size >= 2) {
                         val indices = listOf(0, dataPoints.size / 2, dataPoints.lastIndex)
                         for (idx in indices) {
@@ -253,7 +256,8 @@ fun SignalChart(
 }
 
 /**
- * Latency chart - similar to SignalChart but for ping latency (ms).
+ * Real-time latency chart for visualizing ping results.
+ * Optmized for ms values with dynamic Y-axis scaling based on maximum observed latency.
  */
 @Composable
 fun LatencyChart(

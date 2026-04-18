@@ -6,24 +6,24 @@ import com.scanner.app.data.WifiNetwork
  * Represents channel utilization data for a single WiFi channel.
  */
 data class ChannelInfo(
-    val channel: Int,
-    val frequency: Int,
-    val band: String,
-    val networkCount: Int,
+    val channel: Int,           // Channel number (e.g., 1, 6, 11)
+    val frequency: Int,         // Center frequency in MHz
+    val band: String,            // "2.4 GHz" or "5 GHz"
+    val networkCount: Int,       // Number of networks centered on this channel
     val networks: List<WifiNetwork>,
-    val averageSignal: Int?,
-    val strongestSignal: Int?,
-    val overlapScore: Float     // 0.0 (free) - 1.0 (congested)
+    val averageSignal: Int?,     // Average RSSI of all centered networks
+    val strongestSignal: Int?,   // Maximum RSSI on this channel
+    val overlapScore: Float      // Congestion metric: 0.0 (completely free) to 1.0 (highly congested)
 )
 
 /**
- * Recommendation for the best channel to use.
+ * Recommendation for the best channel to use in a given band.
  */
 data class ChannelRecommendation(
     val channel: Int,
     val band: String,
-    val reason: String,
-    val score: Float            // 0.0 (worst) - 1.0 (best)
+    val reason: String,         // Human-readable explanation for the recommendation
+    val score: Float            // Fitness score: 0.0 (worst/congested) to 1.0 (optimal)
 )
 
 /**
@@ -41,6 +41,10 @@ data class ChannelAnalysis(
     val connectedBand: String?
 )
 
+/**
+ * Utility for analyzing the WiFi environment and identifying optimal channels.
+ * Accounts for 2.4 GHz adjacent-channel interference (overlapping) and 5 GHz isolation.
+ */
 object ChannelAnalyzer {
 
     // 2.4 GHz non-overlapping channels
@@ -49,7 +53,11 @@ object ChannelAnalyzer {
     private val CHANNELS_5 = listOf(36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165)
 
     /**
-     * Perform a full channel analysis on the given WiFi scan results.
+     * Performs a comprehensive channel audit on the provided WiFi scan results.
+     * Calculates overlap scores and generates usage recommendations for both 2.4 GHz and 5 GHz bands.
+     *
+     * @param networks List of [WifiNetwork]s discovered in a scan.
+     * @return A summarized [ChannelAnalysis] report.
      */
     fun analyze(networks: List<WifiNetwork>): ChannelAnalysis {
         val networks24 = networks.filter { it.band == "2.4 GHz" }
@@ -149,12 +157,15 @@ object ChannelAnalyzer {
     }
 
     /**
-     * Convert signal dBm to 0.0-1.0 range (stronger = higher).
+     * Normalizes a signal strength (RSSI) from dBm to a 0.0..1.0 range for scoring.
      */
     private fun normalizeSignal(dbm: Int): Float {
         return ((dbm + 100f) / 70f).coerceIn(0f, 1f)
     }
 
+    /**
+     * Converts a WiFi channel number to its center frequency in MHz.
+     */
     private fun channelToFrequency(channel: Int): Int = when {
         channel in 1..13 -> 2412 + (channel - 1) * 5
         channel == 14 -> 2484

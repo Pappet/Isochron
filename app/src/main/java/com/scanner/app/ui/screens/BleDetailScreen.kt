@@ -31,6 +31,11 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import kotlinx.coroutines.launch
 import com.scanner.app.util.*
 
+/**
+ * Advanced BLE exploration screen for discovering GATT services and characteristics.
+ * Allows connecting to specific devices, browsing their service tree, and persisting
+ * the discovered GATT structure to the device inventory.
+ */
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun BleDetailScreen() {
@@ -83,7 +88,7 @@ fun BleDetailScreen() {
 
     // Otherwise show BLE scanner with connect buttons
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -182,8 +187,11 @@ fun BleDetailScreen() {
     }
 }
 
-// ─── BLE Connect Card ───────────────────────────────────────────
 
+
+/**
+ * Renders a BLE device entry with RSSI and a connection trigger.
+ */
 @Composable
 fun BleConnectCard(
     device: com.scanner.app.data.BluetoothDevice,
@@ -252,8 +260,12 @@ fun BleConnectCard(
     }
 }
 
-// ─── GATT Detail View ───────────────────────────────────────────
 
+
+/**
+ * Visualization of the GATT service tree for a connected device.
+ * Displays connection status, reading progress, and discovered services.
+ */
 @Composable
 fun GattDetailView(
     state: GattExplorerState,
@@ -427,7 +439,7 @@ fun GattDetailView(
                     ServiceCard(service)
                 }
 
-                // ─── Structured Data Section ─────────────────────
+
                 item {
                     var showRaw by remember { mutableStateOf(false) }
 
@@ -477,8 +489,11 @@ fun GattDetailView(
     }
 }
 
-// ─── Service Card ───────────────────────────────────────────────
 
+
+/**
+ * Expandable card representing a single GATT service.
+ */
 @Composable
 fun ServiceCard(service: GattServiceInfo) {
     var expanded by remember { mutableStateOf(service.isStandard) }
@@ -561,8 +576,11 @@ fun ServiceCard(service: GattServiceInfo) {
     }
 }
 
-// ─── Characteristic Row ─────────────────────────────────────────
 
+
+/**
+ * Row representing a GATT characteristic with its properties and current value.
+ */
 @Composable
 fun CharacteristicRow(char: GattCharacteristicInfo) {
     var showDetails by remember { mutableStateOf(false) }
@@ -672,8 +690,11 @@ fun CharacteristicRow(char: GattCharacteristicInfo) {
     }
 }
 
-// ─── Structured JSON Builder ────────────────────────────────────
 
+
+/**
+ * Converts the current GATT explorer state into a structured JSON string.
+ */
 internal fun buildGattJson(state: GattExplorerState): String {
     val root = org.json.JSONObject()
 

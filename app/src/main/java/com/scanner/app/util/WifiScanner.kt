@@ -16,6 +16,12 @@ import android.os.Looper
 import android.util.Log
 import com.scanner.app.data.WifiNetwork
 
+/**
+ * Utility class for performing WiFi scans and retrieving information about the current connection.
+ * Handles scanning timeouts, permission guarding, and parsing of [ScanResult] into [WifiNetwork].
+ *
+ * @property context The application context used for OS service access and receiver registration.
+ */
 @SuppressLint("MissingPermission")
 class WifiScanner(private val context: Context) {
 
@@ -37,8 +43,11 @@ class WifiScanner(private val context: Context) {
     private var timeoutRunnable: Runnable? = null
 
     /**
-     * Start a WiFi scan and return results via callback.
-     * Safe to call even without permissions — will return empty list.
+     * Initiates an asynchronous WiFi scan and returns the results via a callback.
+     * Use [cleanup] or [cleanupCurrentScan] to cancel a pending scan or unregister receivers.
+     *
+     * @param onResults Callback invoked with the list of discovered [WifiNetwork]s.
+     *                  Returns an empty list if services are unavailable or permissions are denied.
      */
     fun startScan(onResults: (List<WifiNetwork>) -> Unit) {
         if (wifiManager == null) {
@@ -112,6 +121,12 @@ class WifiScanner(private val context: Context) {
         }
     }
 
+    /**
+     * Retrieves the SSID of the currently connected WiFi network.
+     * Performs a check for transport type to ensure the active network is indeed WiFi.
+     *
+     * @return The SSID without surrounding quotes, or null if not connected or unavailable.
+     */
     fun getConnectedSsid(): String? {
         return try {
             val connectivityManager =
@@ -132,6 +147,11 @@ class WifiScanner(private val context: Context) {
         }
     }
 
+    /**
+     * Checks if the WiFi adapter is currently enabled.
+     *
+     * @return True if WiFi is on, false otherwise.
+     */
     fun isWifiEnabled(): Boolean {
         return try {
             wifiManager?.isWifiEnabled == true
@@ -140,6 +160,10 @@ class WifiScanner(private val context: Context) {
         }
     }
 
+    /**
+     * Unregisters any active [BroadcastReceiver] and cancels pending timeout callbacks.
+     * Should be called when the scanner is no longer needed (e.g., in a Composable's onDispose).
+     */
     fun cleanup() {
         cleanupCurrentScan()
     }
@@ -209,11 +233,13 @@ class WifiScanner(private val context: Context) {
                         ScanResult.CHANNEL_WIDTH_80MHZ -> "80 MHz"
                         ScanResult.CHANNEL_WIDTH_160MHZ -> "160 MHz"
                         ScanResult.CHANNEL_WIDTH_80MHZ_PLUS_MHZ -> "80+80 MHz"
-                        5 -> "320 MHz" // 5 is CHANNEL_WIDTH_320MHZ (API 33)
                         else -> null
                     }
                 } else null
 
+                // Free-space path loss (FSPL) based distance estimation
+                // Formula: d = 10 ^ ((27.55 - (20 * log10(freq)) + |signal|) / 20)
+                // Note: This is a rough estimate and doesn't account for walls/obstructions.
                 val exp = (27.55 - (20 * Math.log10(result.frequency.toDouble())) + kotlin.math.abs(result.level)) / 20.0
                 val distance = Math.pow(10.0, exp)
 
@@ -240,6 +266,10 @@ class WifiScanner(private val context: Context) {
         }.sortedByDescending { it.signalStrength }
     }
 
+    /**
+     * Converts a frequency in MHz to its corresponding channel number.
+     * Supports 2.4 GHz (1-14) and 5 GHz bands.
+     */
     private fun frequencyToChannel(freq: Int): Int = when {
         freq in 2412..2484 -> (freq - 2412) / 5 + 1
         freq in 5170..5825 -> (freq - 5170) / 5 + 34
@@ -247,6 +277,9 @@ class WifiScanner(private val context: Context) {
         else -> -1
     }
 
+    /**
+     * Parses the capabilities string of a [ScanResult] into a human-readable security type.
+     */
     private fun getSecurityType(result: ScanResult): String {
         val capabilities = result.capabilities ?: return "Unbekannt"
         

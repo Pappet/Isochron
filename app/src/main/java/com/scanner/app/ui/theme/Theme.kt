@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// Brand Colors
 val Teal80 = Color(0xFF80CBC4)
 val Teal40 = Color(0xFF00897B)
 val TealDark = Color(0xFF004D40)
@@ -50,6 +49,14 @@ private val LightColorScheme = lightColorScheme(
     background = Color(0xFFFAFAFA),
 )
 
+/**
+ * Application theme based on Material 3.
+ * Supports dynamic color on Android 12+ and respects system dark theme settings.
+ *
+ * @param darkTheme Whether to use dark or light color scheme.
+ * @param dynamicColor Whether to use Material You dynamic colors if available.
+ * @param content The Composable content to apply the theme to.
+ */
 @Composable
 fun ScannerAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

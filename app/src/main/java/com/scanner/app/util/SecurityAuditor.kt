@@ -4,8 +4,9 @@ import com.scanner.app.data.WifiNetwork
 import com.scanner.app.data.BluetoothDevice
 import com.scanner.app.data.BondState
 
-// ─── Security Finding ───────────────────────────────────────────
-
+/**
+ * Represents a specific security vulnerability or observation.
+ */
 data class SecurityFinding(
     val severity: FindingSeverity,
     val category: FindingCategory,
@@ -15,6 +16,9 @@ data class SecurityFinding(
     val recommendation: String
 )
 
+/**
+ * Severity levels for [SecurityFinding]s, including risk score and UI color.
+ */
 enum class FindingSeverity(val label: String, val score: Int, val color: Long) {
     CRITICAL("Kritisch", 10, 0xFFD32F2F),
     HIGH("Hoch", 7, 0xFFE64A19),
@@ -23,6 +27,9 @@ enum class FindingSeverity(val label: String, val score: Int, val color: Long) {
     INFO("Info", 0, 0xFF42A5F5)
 }
 
+/**
+ * Categories for grouping [SecurityFinding]s in the audit report.
+ */
 enum class FindingCategory(val label: String) {
     WIFI("WLAN"),
     BLUETOOTH("Bluetooth"),
@@ -31,8 +38,9 @@ enum class FindingCategory(val label: String) {
     ENCRYPTION("Verschlüsselung")
 }
 
-// ─── Audit Report ───────────────────────────────────────────────
-
+/**
+ * Summary report of a completed security audit, containing scores and findings.
+ */
 data class SecurityAuditReport(
     val overallScore: Int,               // 0 (unsicher) - 100 (sicher)
     val grade: String,                   // A, B, C, D, F
@@ -50,12 +58,21 @@ data class SecurityAuditReport(
     val auditedNetworks: Int
 )
 
-// ─── Security Auditor ───────────────────────────────────────────
-
+/**
+ * Analyzes discovered networks and devices for security risks and vulnerabilities.
+ * Implements heuristics for WiFi encryption, Bluetooth visibility, and open port risks.
+ */
 object SecurityAuditor {
 
     /**
-     * Run a full security audit on all collected data.
+     * Executes a comprehensive security audit on the provided network and device data.
+     * Starts with a maximum score of 100 and deducts based on found vulnerabilities.
+     *
+     * @param wifiNetworks List of discovered WiFi networks.
+     * @param btDevices List of discovered Bluetooth devices.
+     * @param openPorts List of discovered open TCP ports.
+     * @param connectedSsid Currently connected SSID if applicable.
+     * @return A [SecurityAuditReport] with summarized findings and a letter grade.
      */
     fun audit(
         wifiNetworks: List<WifiNetwork> = emptyList(),
@@ -113,7 +130,7 @@ object SecurityAuditor {
         )
     }
 
-    // ─── WiFi Audit ─────────────────────────────────────────────
+
 
     private fun auditWifi(
         networks: List<WifiNetwork>,
@@ -201,7 +218,7 @@ object SecurityAuditor {
         return findings
     }
 
-    // ─── Bluetooth Audit ────────────────────────────────────────
+
 
     private fun auditBluetooth(devices: List<BluetoothDevice>): List<SecurityFinding> {
         val findings = mutableListOf<SecurityFinding>()
@@ -257,7 +274,7 @@ object SecurityAuditor {
         return findings
     }
 
-    // ─── Port Audit ─────────────────────────────────────────────
+
 
     private fun auditPorts(openPorts: List<PortScanResult>): List<SecurityFinding> {
         val findings = mutableListOf<SecurityFinding>()

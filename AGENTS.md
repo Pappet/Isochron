@@ -1,12 +1,13 @@
 # AGENTS.md - ScannerApp Development Guide
 
 ## Project Overview
+
 - **Type**: Native Android Application (Kotlin)
 - **UI Framework**: Jetpack Compose + Material Design 3
 - **Database**: Room (SQLite)
 - **Architecture**: Manual DI via Repository Pattern
 - **Async**: Kotlin Coroutines + Flow
-- **Min SDK**: 26 (Android 8.0) | **Target SDK**: 34 (Android 14)
+- **Min SDK**: 26 (Android 8.0) | **Target SDK**: 35 (Android 15)
 - **Compose BOM**: 2024.04.01
 
 ---
@@ -14,30 +15,35 @@
 ## Build Commands
 
 ### Gradle Wrapper
+
 ```bash
 ./gradlew <task>
 ```
 
 ### Build Tasks
+
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `./gradlew assembleDebug` | Build debug APK |
 | `./gradlew assembleRelease` | Build release APK |
 | `./gradlew build` | Full build (debug + release) |
 | `./gradlew clean` | Clean build artifacts |
 
 ### Single File/Class Compilation (Fast)
+
 ```bash
 ./gradlew compileDebugKotlin
 ```
 
 ### APK Location
-```
+
+```text
 app/build/outputs/apk/debug/app-debug.apk
 app/build/outputs/apk/release/app-release.apk
 ```
 
 ### Debugging
+
 ```bash
 # Crash logs
 adb logcat -s AndroidRuntime:E | grep -A 20 "FATAL EXCEPTION"
@@ -50,9 +56,11 @@ adb logcat | grep -E "WifiScanner|BluetoothScanner|GattExplorer|NetworkDiscovery
 
 ## Testing
 
-**No unit or instrumented tests exist** in this repository.
+**Unit tests** for utility classes exist in `app/src/test/java/`.
+Currently, there are no instrumented tests (`androidTest`).
 
 If adding tests:
+
 - Unit tests: `app/src/test/java/`
 - Instrumented tests: `app/src/androidTest/java/`
 - Run single test: `./gradlew testDebugUnitTest --tests "com.scanner.app.MyTestClass"`
@@ -63,10 +71,13 @@ If adding tests:
 ## Code Style Guidelines
 
 ### Kotlin Version
+
 Kotlin 1.9.22 with JVM target 17
 
 ### Import Organization
+
 Standard Kotlin import order:
+
 1. Android framework (`android.*`)
 2. Jetpack Compose (`androidx.compose.*`)
 3. Third-party libraries (`com.google.*`, `org.jetbrains.*`)
@@ -76,7 +87,7 @@ Standard Kotlin import order:
 ### Naming Conventions
 
 | Element | Convention | Example |
-|---------|------------|---------|
+| :--- | :--- | :--- |
 | Classes/Objects | PascalCase | `DeviceRepository`, `WifiNetwork` |
 | Functions | camelCase | `startScan()`, `persistWifiScan()` |
 | Properties/Variables | camelCase | `signalStrength`, `isConnected` |
@@ -86,6 +97,7 @@ Standard Kotlin import order:
 | Compose UI state | `mutableStateOf<T>()` | `var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }` |
 
 ### Data Classes
+
 ```kotlin
 data class WifiNetwork(
     val ssid: String,
@@ -102,6 +114,7 @@ data class WifiNetwork(
 ```
 
 ### Room Entities
+
 ```kotlin
 @Entity(
     tableName = "discovered_devices",
@@ -122,6 +135,7 @@ data class DiscoveredDeviceEntity(
 ```
 
 ### Enums with Display Methods
+
 ```kotlin
 enum class DeviceType {
     CLASSIC,
@@ -139,12 +153,14 @@ enum class DeviceType {
 ```
 
 ### Coroutine Usage
+
 - Use `viewModelScope.launch` in ViewModels
 - Use `rememberCoroutineScope()` in Composables
 - Prefer `suspend` functions for repository/dao operations
 - Expose Flow from repositories, collect in Composables via `collectAsState()`
 
 ### Error Handling Pattern
+
 ```kotlin
 // Prefer nullable returns over exceptions for recoverable errors
 fun isWifiEnabled(): Boolean {
@@ -171,6 +187,7 @@ val wifiInfo = wifiManager?.connectionInfo
 ```
 
 ### Logging
+
 ```kotlin
 companion object {
     private const val TAG = "WifiScanner"
@@ -182,6 +199,7 @@ Log.i(TAG, "Scan completed")  // Info (avoid in production)
 ```
 
 ### Compose Guidelines
+
 - Use `remember { }` for expensive objects (scanners, repositories)
 - Use `rememberCoroutineScope()` for coroutine launches in Composables
 - Use `DisposableEffect` for cleanup (unregister receivers, stop scans)
@@ -189,6 +207,7 @@ Log.i(TAG, "Scan completed")  // Info (avoid in production)
 - Group imports with wildcard where appropriate (e.g., `androidx.compose.material.icons.Icons`)
 
 ### Annotations
+
 - `@SuppressLint("MissingPermission")` — always on scanner classes
 - `@Suppress("DEPRECATION")` — for deprecated API usage (e.g., WifiManager.connectionInfo)
 - `@OptIn(ExperimentalMaterial3Api::class)` — for experimental APIs
@@ -196,6 +215,7 @@ Log.i(TAG, "Scan completed")  // Info (avoid in production)
 - `@Entity`, `@Dao`, `@ColumnInfo` — Room annotations
 
 ### Documentation
+
 - KDoc for public classes/functions explaining purpose
 - Inline comments for non-obvious logic or magic values
 - Document units in comments (e.g., `// dBm`, `// MHz`)
@@ -204,7 +224,7 @@ Log.i(TAG, "Scan completed")  // Info (avoid in production)
 
 ## Project Structure
 
-```
+```text
 app/src/main/java/com/scanner/app/
 ├── MainActivity.kt              # Entry point, navigation
 ├── data/
@@ -234,7 +254,8 @@ app/src/main/java/com/scanner/app/
 │       ├── InventoryScreen.kt
 │       ├── ChannelAnalysisScreen.kt
 │       ├── BleDetailScreen.kt
-│       └── SecurityAuditScreen.kt
+│       ├── SecurityAuditScreen.kt
+│       └── MapScreen.kt
 └── util/
     ├── WifiScanner.kt
     ├── BluetoothScanner.kt
@@ -248,7 +269,8 @@ app/src/main/java/com/scanner/app/
     ├── ExportManager.kt
     ├── PortScanner.kt
     ├── SecurityAuditor.kt
-    └── WardrivingTracker.kt
+    ├── WardrivingTracker.kt
+    └── CsvEscape.kt
 ```
 
 ---
@@ -256,20 +278,21 @@ app/src/main/java/com/scanner/app/
 ## Dependencies (Key Versions)
 
 | Library | Version |
-|---------|---------|
+| :--- | :--- |
 | Kotlin | 1.9.22 |
 | Compose BOM | 2024.04.01 |
 | Room | 2.6.1 |
-| Navigation Compose | 2.7.6 |
+| Navigation Compose | 2.7.7 |
 | Accompanist Permissions | 0.34.0 |
 | KSP (Room) | 1.9.22-1.0.17 |
-| Lifecycle ViewModel Compose | 2.7.0 |
+| Lifecycle ViewModel Compose | 2.8.7 |
 
 ---
 
 ## Lint & Code Quality
 
 **No linter is configured** for this project. If adding one:
+
 - Consider **ktlint** or **detekt** for Kotlin
 - Android Lint is built-in: `./gradlew lint`
 
@@ -278,6 +301,7 @@ app/src/main/java/com/scanner/app/
 ## Common Patterns
 
 ### Repository Pattern
+
 ```kotlin
 class DeviceRepository(context: Context) {
     private val dao = AppDatabase.getInstance(context).deviceDao()
@@ -288,11 +312,13 @@ class DeviceRepository(context: Context) {
 ```
 
 ### Flow Collection in Compose
+
 ```kotlin
 val devices by repository.observeAllDevices().collectAsState()
 ```
 
 ### Upsert Pattern (Room)
+
 ```kotlin
 @Transaction
 suspend fun upsertDevice(...): Long {

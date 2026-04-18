@@ -20,16 +20,18 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-// ─── Export Format ───────────────────────────────────────────────
-
+/**
+ * Supported file formats for exporting device inventory data.
+ */
 enum class ExportFormat(val label: String, val extension: String, val mimeType: String) {
     CSV("CSV", "csv", "text/csv"),
     JSON("JSON", "json", "application/json"),
     PDF("PDF-Bericht", "pdf", "application/pdf")
 }
 
-// ─── Export Filter ──────────────────────────────────────────────
-
+/**
+ * Filtering options for narrowing down the set of devices to export.
+ */
 data class ExportFilter(
     val categories: Set<DeviceCategory>? = null,  // null = all
     val favoritesOnly: Boolean = false,
@@ -37,8 +39,9 @@ data class ExportFilter(
     val includeSignalHistory: Boolean = false
 )
 
-// ─── Export Result ───────────────────────────────────────────────
-
+/**
+ * The outcome of an export operation, containing the generated file and its URI for sharing.
+ */
 data class ExportResult(
     val file: File,
     val format: ExportFormat,
@@ -46,8 +49,10 @@ data class ExportResult(
     val uri: Uri? = null
 )
 
-// ─── Export Manager ─────────────────────────────────────────────
-
+/**
+ * Orchestrates the extraction and formatting of device inventory data into shared files.
+ * Supports CSV (spreadsheet), JSON (machine-readable), and PDF (printable report) formats.
+ */
 class ExportManager(private val context: Context) {
 
     private val repository = DeviceRepository(context)
@@ -59,7 +64,12 @@ class ExportManager(private val context: Context) {
         .withZone(ZoneId.systemDefault())
 
     /**
-     * Export device inventory data in the specified format.
+     * Executes the export process for a filtered set of devices.
+     * Writes the data to a temporary file in the application's cache directory.
+     *
+     * @param format The target [ExportFormat].
+     * @param filter Criteria for selecting devices [ExportFilter].
+     * @return An [ExportResult] containing the file handle and a shareable URI.
      */
     suspend fun export(
         format: ExportFormat,
@@ -91,7 +101,8 @@ class ExportManager(private val context: Context) {
     }
 
     /**
-     * Share an export result via Android share intent.
+     * Creates an [Intent.ACTION_SEND] for sharing the exported file with other applications.
+     * Automatically grants temporary read permissions for the file URI.
      */
     fun share(result: ExportResult): Intent {
         return Intent(Intent.ACTION_SEND).apply {
@@ -106,7 +117,7 @@ class ExportManager(private val context: Context) {
         }
     }
 
-    // ─── CSV Export ─────────────────────────────────────────────
+
 
     private fun exportCsv(file: File, devices: List<DiscoveredDeviceEntity>) {
         FileOutputStream(file).bufferedWriter(Charsets.UTF_8).use { writer ->
@@ -139,7 +150,7 @@ class ExportManager(private val context: Context) {
         }
     }
 
-    // ─── JSON Export ────────────────────────────────────────────
+
 
     private suspend fun exportJson(
         file: File,
@@ -197,7 +208,7 @@ class ExportManager(private val context: Context) {
         }
     }
 
-    // ─── PDF Export ─────────────────────────────────────────────
+
 
     private fun exportPdf(file: File, devices: List<DiscoveredDeviceEntity>) {
         val document = PdfDocument()
@@ -358,7 +369,7 @@ class ExportManager(private val context: Context) {
         document.close()
     }
 
-    // ─── Helpers ────────────────────────────────────────────────
+
 
     private suspend fun getFilteredDevices(filter: ExportFilter): List<DiscoveredDeviceEntity> {
         val flow = when {

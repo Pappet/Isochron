@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,9 @@ import java.time.temporal.ChronoUnit
 
 // ─── Filter Enum ────────────────────────────────────────────────
 
+/**
+ * Supported filter states for the device inventory.
+ */
 enum class InventoryFilter(val label: String) {
     ALL("Alle"),
     WIFI("WLAN"),
@@ -51,6 +55,13 @@ enum class InventoryFilter(val label: String) {
 
 // ─── Inventory Screen ───────────────────────────────────────────
 
+/**
+ * Main screen for the persistent device inventory.
+ * Provides searching, filtering, and management (marking favorites, editing labels, deletion)
+ * of all previously discovered devices.
+ *
+ * @param onNavigateToDevice Optional callback for navigating to a specific device detail page.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryScreen(
@@ -102,7 +113,7 @@ fun InventoryScreen(
     var editDialogDevice by remember { mutableStateOf<DiscoveredDeviceEntity?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // ─── Header with search ─────────────────────────────────
+
         if (isSearchActive) {
             SearchBar(
                 query = searchQuery,
@@ -157,14 +168,14 @@ fun InventoryScreen(
             }
         }
 
-        // ─── Filter chips ───────────────────────────────────────
-        Row(
+
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            InventoryFilter.entries.forEach { filter ->
+            items(InventoryFilter.entries) { filter ->
                 FilterChip(
                     selected = activeFilter == filter,
                     onClick = { activeFilter = filter },
@@ -176,7 +187,7 @@ fun InventoryScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ─── Device list ────────────────────────────────────────
+
         if (filteredDevices.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -225,7 +236,7 @@ fun InventoryScreen(
         }
     }
 
-    // ─── Edit Dialog ────────────────────────────────────────────
+
     editDialogDevice?.let { device ->
         EditDeviceDialog(
             device = device,
@@ -243,6 +254,9 @@ fun InventoryScreen(
 
 // ─── Device Card for Inventory ──────────────────────────────────
 
+/**
+ * Renders an entry in the inventory with status indicators and an expandable metadata view.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun InventoryDeviceCard(
@@ -439,7 +453,7 @@ fun InventoryDeviceCard(
                 }
             }
 
-            // ─── Expanded Details ───────────────────────────────
+
             if (expanded) {
                 Spacer(modifier = Modifier.height(10.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -455,7 +469,7 @@ fun InventoryDeviceCard(
                 device.customLabel?.let { MetaRow("Label", it) }
                 device.notes?.let { MetaRow("Notizen", it) }
 
-                // ─── Category-specific metadata ─────────────────
+
                 if (meta != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
@@ -660,8 +674,11 @@ fun InventoryDeviceCard(
     }
 }
 
-// ─── Edit Dialog ────────────────────────────────────────────────
 
+
+/**
+ * Dialog for editing custom labels and notes for a persisted device.
+ */
 @Composable
 fun EditDeviceDialog(
     device: DiscoveredDeviceEntity,
@@ -713,7 +730,7 @@ fun EditDeviceDialog(
     )
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
+
 
 private fun categoryIcon(category: DeviceCategory): ImageVector = when (category) {
     DeviceCategory.WIFI -> Icons.Outlined.Wifi

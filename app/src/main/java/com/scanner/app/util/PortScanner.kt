@@ -7,8 +7,9 @@ import java.io.InputStreamReader
 import java.net.InetSocketAddress
 import java.net.Socket
 
-// ─── Data Models ────────────────────────────────────────────────
-
+/**
+ * Represents the result of a scan on a specific TCP port.
+ */
 data class PortScanResult(
     val ip: String,
     val port: Int,
@@ -19,12 +20,18 @@ data class PortScanResult(
     val detectedProtocol: DetectedProtocol = DetectedProtocol.UNKNOWN
 )
 
+/**
+ * Connectivity state of a scanned port.
+ */
 enum class PortState(val label: String) {
     OPEN("Offen"),
     CLOSED("Geschlossen"),
     FILTERED("Gefiltert");
 }
 
+/**
+ * Protocols identifiable via banner grabbing or port number hints.
+ */
 enum class DetectedProtocol(val label: String) {
     HTTP("HTTP"),
     HTTPS_LIKELY("HTTPS (vermutet)"),
@@ -48,6 +55,9 @@ enum class DetectedProtocol(val label: String) {
     val isBrowsable: Boolean get() = this == HTTP
 }
 
+/**
+ * UI state for tracking the progress of an ongoing port scan.
+ */
 data class PortScanProgress(
     val scanned: Int,
     val total: Int,
@@ -55,8 +65,10 @@ data class PortScanProgress(
     val currentPort: Int
 )
 
-// ─── Well-Known Ports ───────────────────────────────────────────
-
+/**
+ * A database of well-known TCP ports and their associated services.
+ * Provides lookup tables for common scan ranges and risk assessment.
+ */
 object WellKnownPorts {
 
     /** Top 50 most commonly scanned ports */
@@ -176,7 +188,8 @@ object WellKnownPorts {
     }
 
     /**
-     * Returns a browsable URL based on detected protocol + port, or null.
+     * Generates a browsable URL (http/https) based on the detected protocol and port.
+     * Use this for ports identified as web services.
      */
     fun browseUrl(result: PortScanResult): String? {
         val ip = result.ip
@@ -216,7 +229,7 @@ object WellKnownPorts {
         ))
     }
 
-    /** Security risk assessment for open ports */
+    /** Performs a risk assessment for historically vulnerable or sensitive ports. */
     fun riskLevel(port: Int): PortRisk = when (port) {
         23 -> PortRisk.CRITICAL     // Telnet — unverschlüsselt
         21 -> PortRisk.HIGH         // FTP — oft unverschlüsselt
@@ -252,8 +265,10 @@ enum class PortRisk(val label: String, val score: Int) {
     INFO("Info", 0)
 }
 
-// ─── Port Scanner Engine ────────────────────────────────────────
-
+/**
+ * A robust TCP port scanner with service identification (banner grabbing).
+ * Employs adaptive strategies based on port count to optimize for speed and overhead.
+ */
 class PortScanner {
 
     companion object {
@@ -261,11 +276,14 @@ class PortScanner {
     }
 
     /**
-     * Scan a host for open ports.
-     * Automatically adapts strategy based on number of ports:
-     * - ≤50: full probe per port (connect + passive banner + HTTP probe)
-     * - ≤200: moderate parallelism, full probe
-     * - >200: two-pass — fast connect-only scan, then banner grab only open ports
+     * Scans a host for open ports and identifies services.
+     *
+     * @param ip Target IP address.
+     * @param ports List of ports to scan.
+     * @param grabBanners If true, attempts to read service banners from open ports.
+     * @param onProgress Callback for scan progress updates.
+     * @param onPortFound Callback invoked immediately for each open port found.
+     * @return List of discovered open ports with service metadata.
      */
     suspend fun scan(
         ip: String,
@@ -376,7 +394,13 @@ class PortScanner {
             }
         }
 
-        private suspend fun scanPortFull(
+    /**
+     * Connects to a port and performs multi-stage service identification.
+     * 1. Passive banner grab (waiting for one-way protocol greetings like SSH/FTP).
+     * 2. Active HTTP probe (sending a HEAD request).
+     * 3. Fallback to well-known port aliases.
+     */
+    private suspend fun scanPortFull(
         ip: String,
         port: Int,
         connectTimeoutMs: Int = 1500,
@@ -410,7 +434,7 @@ class PortScanner {
                     val passiveBanner = try {
                         socket.soTimeout = 1500
                         val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream))
-                        if (inputStream.available() > 0 || waitForData(inputStream, 1200)) {
+                    if (inputStream.available() > 0 || waitForData(inputStream, 1200)) {
                             reader.readLine()?.take(300)
                         } else null
                     } catch (_: Exception) { null }
@@ -473,12 +497,14 @@ class PortScanner {
 
     /**
      * Wait for data to become available on the input stream.
+     * Implemented as a suspend function so it yields the IO thread during the polling
+     * interval instead of blocking it — prevents Dispatcher-Starvation on large scans.
      */
-    private fun waitForData(inputStream: java.io.InputStream, timeoutMs: Int): Boolean {
+    private suspend fun waitForData(inputStream: java.io.InputStream, timeoutMs: Int): Boolean {
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < timeoutMs) {
             if (inputStream.available() > 0) return true
-            Thread.sleep(50)
+            delay(50) // suspend instead of blocking the IO thread
         }
         return false
     }

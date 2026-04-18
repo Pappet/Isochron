@@ -30,6 +30,12 @@ import com.scanner.app.util.WardrivingTracker
 import com.scanner.app.util.WifiScanner
 import kotlinx.coroutines.launch
 
+/**
+ * Main screen for discovered WiFi networks.
+ * Orchestrates scanning via [WifiScanner], wardriving (GPS geotagging) via [WardrivingTracker],
+ * and result persistence via [DeviceRepository].
+ * Manages runtime permissions for location and nearby device access (API 33+).
+ */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun WifiScreen() {
@@ -43,11 +49,9 @@ fun WifiScreen() {
     var isScanning by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
 
-    // GPS geotagging state
     var gpsEnabled by remember { mutableStateOf(false) }
     var geoTagCount by remember { mutableStateOf(0) }
     var uniqueGeoNetworks by remember { mutableStateOf(0) }
-
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -65,6 +69,10 @@ fun WifiScreen() {
         }
     }
 
+    /**
+     * Triggers a WiFi scan using the [WifiScanner].
+     * Captures results, updates local state, and persists the data to the repository.
+     */
     fun doScan() {
         if (!wifiScanner.isWifiEnabled()) return
         if (!permissionState.allPermissionsGranted) return
@@ -75,14 +83,14 @@ fun WifiScreen() {
             isScanning = false
             hasScanned = true
 
-            // Geotag if GPS is enabled
+
             if (gpsEnabled) {
                 wardrivingTracker.recordNetworks(results)
                 geoTagCount = wardrivingTracker.getEntryCount()
                 uniqueGeoNetworks = wardrivingTracker.getUniqueNetworks()
             }
 
-            // Persist to Room DB
+
             try {
                 scope.launch {
                     try {
@@ -100,7 +108,7 @@ fun WifiScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -152,7 +160,7 @@ fun WifiScreen() {
             }
         }
 
-        // GPS Geotagging bar
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -181,7 +189,7 @@ fun WifiScreen() {
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Export button (visible when we have geo data)
+
                 if (gpsEnabled && geoTagCount > 0) {
                     IconButton(
                         onClick = {
@@ -237,7 +245,7 @@ fun WifiScreen() {
             }
         }
 
-        // Permission warning
+
         if (!permissionState.allPermissionsGranted) {
             Card(
                 modifier = Modifier
@@ -273,7 +281,7 @@ fun WifiScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // WiFi disabled warning
+
         if (!wifiScanner.isWifiEnabled()) {
             Card(
                 modifier = Modifier
@@ -303,7 +311,7 @@ fun WifiScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Network list
+
         if (networks.isEmpty() && hasScanned) {
             Box(
                 modifier = Modifier

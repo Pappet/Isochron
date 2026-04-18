@@ -19,8 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.Instant
 
-// ─── Monitoring State ────────────────────────────────────────────
-
+/**
+ * Immutable state representation for the background monitoring process.
+ */
 data class MonitoringState(
     val isRunning: Boolean = false,
     val intervalSeconds: Int = 10,
@@ -35,8 +36,11 @@ data class MonitoringState(
     val newDeviceCount: Int = 0
 )
 
-// ─── Service ─────────────────────────────────────────────────────
-
+/**
+ * Foreground service that performs periodic network monitoring.
+ * Tracks WiFi signal strength, gateway latency, and internet reachability.
+ * Exposes real-time status through a [StateFlow] and updates a persistent notification.
+ */
 class ScanService : Service() {
 
     companion object {
@@ -88,8 +92,12 @@ class ScanService : Service() {
         super.onDestroy()
     }
 
-    // ─── Monitoring Control ─────────────────────────────────────
 
+
+    /**
+     * Starts the monitoring cycle as a foreground service.
+     * @param intervalSeconds The delay between monitoring cycles.
+     */
     @SuppressLint("ForegroundServiceType")
     fun startMonitoring(intervalSeconds: Int = 10) {
         if (monitorJob?.isActive == true) return
@@ -110,6 +118,9 @@ class ScanService : Service() {
         }
     }
 
+    /**
+     * Stops the monitoring cycle and removes the foreground notification.
+     */
     fun stopMonitoring() {
         monitorJob?.cancel()
         monitorJob = null
@@ -118,6 +129,9 @@ class ScanService : Service() {
         stopSelf()
     }
 
+    /**
+     * Updates the frequency of the monitoring cycles.
+     */
     fun updateInterval(seconds: Int) {
         val wasRunning = _state.value.isRunning
         if (wasRunning) {
@@ -134,7 +148,7 @@ class ScanService : Service() {
         }
     }
 
-    // ─── Monitoring Cycle ───────────────────────────────────────
+
 
     private suspend fun performMonitoringCycle() {
         try {
@@ -193,7 +207,7 @@ class ScanService : Service() {
         }
     }
 
-    // ─── Notification ───────────────────────────────────────────
+
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(

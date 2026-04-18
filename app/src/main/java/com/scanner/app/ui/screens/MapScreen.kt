@@ -28,7 +28,9 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
-/** Parsed geo-coordinates extracted once per device entity. */
+/**
+ * Parsed geo-coordinates extracted once per device entity for map visualization.
+ */
 private data class GeoDevice(
     val bssid: String,
     val name: String,
@@ -37,6 +39,11 @@ private data class GeoDevice(
     val security: String
 )
 
+/**
+ * Main screen for visualizing geo-tagged WiFi networks on an OpenStreetMap.
+ * Parses device metadata for coordinates and renders optimized markers with security-based coloring.
+ * Implements incremental marker diffing for performance and centroid centering for UX.
+ */
 @Composable
 fun MapScreen() {
     val context = LocalContext.current
@@ -47,7 +54,6 @@ fun MapScreen() {
         .collectAsState(initial = emptyList())
 
     // Parse metadata once per device, filter to those with geo-coordinates.
-    // JSON is parsed here a single time — not twice in separate lat/lon sumOf calls.
     val geoDevices: List<GeoDevice> = remember(devices) {
         devices.mapNotNull { device ->
             try {
@@ -65,15 +71,8 @@ fun MapScreen() {
         }
     }
 
-    // hasInitiallyRecentered is stored as a plain Boolean ref so the AndroidView
-    // update lambda can read/write it without capturing a State<Boolean> that would
-    // trigger recomposition on every marker update.
-    //
-    // Design note (Pkt. 4): the flag is intentionally NOT reset when geoDevices becomes
-    // empty again. "Center once per session" is the desired UX — if a reset-on-empty
-    // behaviour is wanted later, add `if (geoDevices.isEmpty()) hasInitiallyRecentered.value = false`
-    // in the empty-state branch above.
     val hasInitiallyRecentered = remember { mutableStateOf(false) }
+    val markerCache = remember { mutableMapOf<String, Marker>() }
 
     // Helper: draw a colored circle marker for the given security type
     val createMarkerIcon = { ctx: Context, sec: String ->
@@ -124,12 +123,8 @@ fun MapScreen() {
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
-            // TODO(release): replace the contact URL below with the actual project URL
-            //   before publishing to the Play Store. The OSM tile-usage policy requires
-            //   a reachable contact reference: https://operations.osmfoundation.org/policies/tiles/
             Configuration.getInstance().apply {
                 userAgentValue = "ScannerApp/${BuildConfig.VERSION_NAME} (Android; +https://github.com/TODO_REPLACE/ScannerApp)"
-                // Redirect tile cache to app-private storage (Scoped Storage safe on API 30+)
                 osmdroidBasePath = ctx.filesDir
                 osmdroidTileCache = ctx.filesDir.resolve("osmdroid/tiles")
             }
@@ -140,16 +135,42 @@ fun MapScreen() {
             map
         },
         update = { map ->
-            map.overlays.clear()
+            // Overlay diff: only create/remove markers that actually changed.
+            // Avoids O(n) Bitmap allocation + overlay rebuild on every scan cycle.
+            val currentByBssid = geoDevices.associateBy { it.bssid }
+            val cachedBssids = markerCache.keys.toSet()
 
-            for (geo in geoDevices) {
-                val marker = Marker(map)
-                marker.position = GeoPoint(geo.lat, geo.lon)
-                marker.title = geo.name.ifBlank { "WLAN Netzwerk" }
-                marker.snippet = "BSSID: ${geo.bssid}\nSicherheit: ${geo.security}"
-                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                marker.icon = createMarkerIcon(map.context, geo.security)
-                map.overlays.add(marker)
+            // 1. Remove stale markers
+            (cachedBssids - currentByBssid.keys).forEach { bssid ->
+                map.overlays.remove(markerCache.remove(bssid))
+            }
+
+            // 2. Update existing + create new
+            currentByBssid.forEach { (bssid, geo) ->
+                val cached = markerCache[bssid]
+                if (cached == null) {
+                    // New marker
+                    val marker = Marker(map).apply {
+                        position = GeoPoint(geo.lat, geo.lon)
+                        title = geo.name.ifBlank { "WLAN Netzwerk" }
+                        snippet = "BSSID: ${geo.bssid}\nSicherheit: ${geo.security}"
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        icon = createMarkerIcon(map.context, geo.security)
+                    }
+                    map.overlays.add(marker)
+                    markerCache[bssid] = marker
+                } else {
+                    // Existing marker — update position if drifted
+                    val newPos = GeoPoint(geo.lat, geo.lon)
+                    if (cached.position.latitude != geo.lat || cached.position.longitude != geo.lon) {
+                        cached.position = newPos
+                    }
+                    // Update snippet/icon if security changed
+                    if (!cached.snippet.contains(geo.security)) {
+                        cached.snippet = "BSSID: ${geo.bssid}\nSicherheit: ${geo.security}"
+                        cached.icon = createMarkerIcon(map.context, geo.security)
+                    }
+                }
             }
 
             // One-time initial centering on the centroid of all geo-devices.
@@ -165,7 +186,13 @@ fun MapScreen() {
 
             map.invalidate()
         },
-        // Release OSMDroid Tile-Loader threads + Bitmap-Cache on Tab-detach to prevent memory leaks
-        onRelease = { it.onDetach() }
+        // Release OSMDroid Tile-Loader threads + Bitmap-Cache on Tab-detach to prevent memory leaks.
+        // Also clear markerCache: cached Marker instances reference the destroyed MapView, so they
+        // must not be reused on next factory() call (otherwise empty→non-empty cycles leave stale
+        // markers attached to a dead MapView, causing the new MapView to render no markers).
+        onRelease = {
+            it.onDetach()
+            markerCache.clear()
+        }
     )
 }

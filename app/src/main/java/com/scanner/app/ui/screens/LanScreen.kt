@@ -28,6 +28,12 @@ import com.scanner.app.data.repository.DeviceRepository
 import com.scanner.app.util.*
 import kotlinx.coroutines.launch
 
+/**
+ * Main screen for discovered Local Area Network (LAN) devices.
+ * Uses orchestrated discovery techniques ([NetworkDiscovery]) including ARP, Ping, NetBIOS,
+ * mDNS, and UPnP to identify network participants.
+ * Supports deep port scanning and service banner grabbing via [PortScanner].
+ */
 @Composable
 fun LanScreen() {
     val context = LocalContext.current
@@ -41,11 +47,10 @@ fun LanScreen() {
     var hasScanned by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf<LanScanProgress?>(null) }
     var networkInfo by remember { mutableStateOf<NetworkInfo?>(null) }
-
-    // Port scan state: hoisted so it survives scrolling/recomposition
     var portScanResults by remember { mutableStateOf<Map<String, List<PortScanResult>>>(emptyMap()) }
     var portScanningIp by remember { mutableStateOf<String?>(null) }
     var portScanProgress by remember { mutableStateOf<PortScanProgress?>(null) }
+
     val portScanner = remember { PortScanner() }
 
     DisposableEffect(Unit) {
@@ -67,7 +72,7 @@ fun LanScreen() {
                 )
                 devices = result
 
-                // Persist LAN devices to Room DB
+
                 try {
                     repository.persistLanScan(result)
                 } catch (e: Exception) {
@@ -95,7 +100,7 @@ fun LanScreen() {
                 )
                 portScanResults = portScanResults + (ip to results)
 
-                // Persist port results to device metadata
+
                 try {
                     repository.persistPortScanResults(ip, results)
                 } catch (_: Exception) {}
@@ -108,7 +113,7 @@ fun LanScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // ─── Header ─────────────────────────────────────────────
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -148,7 +153,7 @@ fun LanScreen() {
             }
         }
 
-        // ─── Progress ───────────────────────────────────────────
+
         if (isScanning && progress != null) {
             val p = progress!!
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -169,7 +174,7 @@ fun LanScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // ─── Network info card ──────────────────────────────────
+
         networkInfo?.let { info ->
             Card(
                 modifier = Modifier
@@ -209,7 +214,7 @@ fun LanScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // ─── Device list ────────────────────────────────────────
+
         if (devices.isEmpty() && !isScanning && !hasScanned) {
             Box(
                 modifier = Modifier
@@ -274,8 +279,10 @@ fun LanScreen() {
     }
 }
 
-// ─── LAN Device Card ────────────────────────────────────────────
-
+/**
+ * Renders a single LAN device entry with an expandable detail section.
+ * Handles port scan triggering and results visualization.
+ */
 @Composable
 fun LanDeviceCard(
     device: LanDevice,
@@ -422,13 +429,13 @@ fun LanDeviceCard(
                 }
             }
 
-            // ─── Expanded details ───────────────────────────────
+
             if (expanded) {
                 Spacer(modifier = Modifier.height(10.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // MAC + Vendor
+
                 device.mac?.let { mac ->
                     DetailRowMono("MAC", mac)
                     MacVendorLookup.lookup(mac)?.let { fullVendor ->
@@ -446,7 +453,7 @@ fun LanDeviceCard(
                     DetailRowMono("Latenz", "${"%.1f".format(it)} ms")
                 }
 
-                // Services (mDNS)
+
                 if (device.services.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -461,7 +468,7 @@ fun LanDeviceCard(
                     }
                 }
 
-                // UPnP info
+
                 device.upnpInfo?.let { upnp ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -480,7 +487,7 @@ fun LanDeviceCard(
                     }
                 }
 
-                // ─── Port Scanner ───────────────────────────────
+
                 Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 Spacer(modifier = Modifier.height(10.dp))
@@ -544,7 +551,7 @@ fun LanDeviceCard(
                     }
                 }
 
-                // Port scan progress
+
                 if (isPortScanning) {
                     portProgress?.let { p ->
                         Spacer(modifier = Modifier.height(6.dp))
@@ -566,7 +573,7 @@ fun LanDeviceCard(
                     }
                 }
 
-                // Port results
+
                 if (portResults.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(6.dp))
                     portResults.forEach { port ->
@@ -623,7 +630,7 @@ fun LanDeviceCard(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            // Browser button for detected HTTP
+
                             WellKnownPorts.browseUrl(port)?.let { url ->
                                 Spacer(modifier = Modifier.width(4.dp))
                                 val context = LocalContext.current
@@ -662,7 +669,7 @@ fun LanDeviceCard(
     }
 }
 
-// ─── Sub-components ─────────────────────────────────────────────
+
 
 @Composable
 fun InfoChip(label: String, value: String, modifier: Modifier = Modifier) {
@@ -686,6 +693,9 @@ fun InfoChip(label: String, value: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Small badge for indicating a device's role (e.g., "Gateway", "Own Device").
+ */
 @Composable
 fun RoleChip(text: String, color: Color) {
     Surface(
@@ -701,6 +711,9 @@ fun RoleChip(text: String, color: Color) {
     }
 }
 
+/**
+ * Simple key-value row for device details.
+ */
 @Composable
 fun DetailRowMono(label: String, value: String) {
     Row(
@@ -724,6 +737,9 @@ fun DetailRowMono(label: String, value: String) {
     }
 }
 
+/**
+ * Row representing a discovered mDNS service.
+ */
 @Composable
 fun ServiceRow(service: LanService) {
     val serviceIcon = when {

@@ -23,6 +23,10 @@ import com.scanner.app.ui.screens.*
 import com.scanner.app.ui.theme.ScannerAppTheme
 import kotlinx.coroutines.launch
 
+/**
+ * Main entry point of the application.
+ * Initialises edge-to-edge display and sets the root Composable.
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,6 +39,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Root Composable that orchestrates the application's navigation and layout.
+ * Uses a [HorizontalPager] to switch between main feature screens (WiFi, Bluetooth, LAN, etc.).
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ScannerApp() {
@@ -155,7 +163,7 @@ fun ScannerApp() {
     ) { padding ->
         HorizontalPager(
             state = pagerState,
-            beyondBoundsPageCount = 6,  // Keep all 7 pages alive in memory
+            beyondBoundsPageCount = 7,  // Keep all 8 pages alive in memory (pages 0–7)
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -174,6 +182,9 @@ fun ScannerApp() {
     }
 }
 
+/**
+ * Represents a navigation target in the [NavigationBar].
+ */
 data class TabItem(
     val title: String,
     val icon: ImageVector
