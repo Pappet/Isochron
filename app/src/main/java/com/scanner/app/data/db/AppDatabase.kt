@@ -24,6 +24,16 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        /**
+         * Add new migrations here whenever the schema version is bumped.
+         * Example:
+         *   val MIGRATION_1_2 = object : Migration(1, 2) {
+         *       override fun migrate(db: SupportSQLiteDatabase) {
+         *           db.execSQL("ALTER TABLE discovered_devices ADD COLUMN new_column TEXT")
+         *       }
+         *   }
+         */
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -31,7 +41,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "scanner_db"
                 )
-                    .fallbackToDestructiveMigration()
+                    // DO NOT add fallbackToDestructiveMigration() — all schema changes
+                    // must be handled via explicit Migration objects listed above to
+                    // prevent data loss for the user.
                     .build()
                     .also { INSTANCE = it }
             }

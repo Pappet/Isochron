@@ -1,0 +1,568 @@
+<h1 id="ultra-review-scannerapp">Ultra Review — ScannerApp</h1>
+<p><strong>Datum:</strong> 2026-04-17 <strong>Branch:</strong>
+<code>main</code> @ <code>e5daf16</code> <strong>Scope:</strong>
+gesamtes Projekt (Architektur, Code-Qualität, Korrektheit, UX,
+Performance, Tech Debt). <strong>Komplement:</strong>
+<code>docs/SECURITY_REVIEW.md</code> (gleiches Datum) —
+Security-Findings sind dort abgedeckt und werden hier <strong>nicht
+dupliziert</strong>, nur referenziert.</p>
+<hr />
+<h2 id="executive-summary">1. Executive Summary</h2>
+<p>ScannerApp ist für eine Single-Developer-Solo-Codebase bemerkenswert
+sauber strukturiert: klare Trennung <code>util/</code> ↔︎
+<code>data/</code> ↔︎ <code>ui/</code>, reaktive Datenflüsse via Room +
+Flow, moderne Compose/Material-3-UI, sinnvolle
+Foreground-Service-Architektur für das Monitoring. Bei ~11 kLOC Kotlin
+in ~34 Quelldateien ist die Kohärenz hoch, es gibt keine sichtbaren
+“Leichen” oder tote Abstraktionen.</p>
+<p>Die Gesamtnote ist <strong>B+</strong> — solide, wartbar,
+feature-reich. Die Abzüge kommen aus drei Richtungen:</p>
+<ol type="1">
+<li><strong>Ein konkreter UI-Bug</strong> in
+<code>BluetoothScreen.kt</code> (Kotlin-Operator-Precedence — Counter
+„gekoppelt” wird nie angezeigt, sobald „verbunden” &gt; 0).</li>
+<li><strong>Reliability-Fallen</strong> (destruktive Room-Migration,
+<code>Thread.sleep</code> in Coroutine, fragile
+<code>GattExplorer</code>-Continuation,
+<code>MapView</code>-Lifecycle).</li>
+<li><strong>Fundament fehlt</strong>: keine Tests, kein Linter, kein
+ProGuard/R8 im Release-Build. Das ist bei einer feature-kompletten App
+mit 11 kLOC die größte Hypothek.</li>
+</ol>
+<p>Priorisierte Empfehlungen siehe §9.</p>
+<hr />
+<h2 id="architektur-stärken">2. Architektur — Stärken</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Aspekt</th>
+<th>Bewertung</th>
+<th>Anmerkung</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Paket-Layout</td>
+<td>✅</td>
+<td><code>data/</code>, <code>service/</code>, <code>ui/</code>,
+<code>util/</code> sauber getrennt; keine Zirkelabhängigkeiten
+gefunden.</td>
+</tr>
+<tr class="even">
+<td>Datenzugriff</td>
+<td>✅</td>
+<td>Repository-Pattern + Room DAO + <code>TypeConverter</code> für
+<code>Instant</code>/Enums; alle Queries parametrisiert (siehe
+<code>DeviceDao.kt</code>), kein SQLi-Risiko.</td>
+</tr>
+<tr class="odd">
+<td>Nebenläufigkeit</td>
+<td>✅</td>
+<td>Coroutines + Flow/StateFlow, <code>viewModelScope</code>-äquivalent
+via <code>rememberCoroutineScope()</code>. Keine manuelle
+Thread-Handhabung in der UI.</td>
+</tr>
+<tr class="even">
+<td>Service-Design</td>
+<td>✅</td>
+<td><code>ScanService</code> korrekt als Foreground-Service mit
+<code>foregroundServiceType="connectedDevice"</code> und
+<code>exported=false</code>. LocalBinder-Pattern.</td>
+</tr>
+<tr class="odd">
+<td>Permissions</td>
+<td>✅</td>
+<td>Accompanist-Permissions in allen relevanten Screens,
+<code>maxSdkVersion=30</code> für legacy BT-Perms,
+<code>neverForLocation</code>-Flag für BT_SCAN und
+NEARBY_WIFI_DEVICES.</td>
+</tr>
+<tr class="even">
+<td>Manifest-Hygiene</td>
+<td>✅</td>
+<td>FileProvider <code>exported=false</code>, Service
+<code>exported=false</code>, keine unnötig breiten Intent-Filter.</td>
+</tr>
+<tr class="odd">
+<td>UI-Schichtung</td>
+<td>✅</td>
+<td>Screen-Composables sind stateful-light, schwere Arbeit in
+<code>util/</code>. Gemeinsame Komponenten (<code>SignalBar</code>,
+<code>StatusChip</code>, <code>MetaRow</code>) korrekt extrahiert.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="defekte-bugs-konkret">3. Defekte / Bugs (konkret)</h2>
+<h3 id="bluetoothscreen.kt142-147-operator-precedence-bug">3.1 🔴
+<code>BluetoothScreen.kt:142-147</code> — Operator-Precedence-Bug</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>text <span class="op">=</span> <span class="st">&quot;</span><span class="ss">${</span>devices<span class="op">.</span>size<span class="ss">}</span><span class="st"> gefunden&quot;</span> <span class="op">+</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>connected <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="st">&quot; · </span><span class="ss">$connected</span><span class="st"> verbunden&quot;</span> <span class="cf">else</span> <span class="st">&quot;&quot;</span> <span class="op">+</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> <span class="op">(</span>bonded <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="st">&quot; · </span><span class="ss">$bonded</span><span class="st"> gekoppelt&quot;</span> <span class="cf">else</span> <span class="st">&quot;&quot;</span><span class="op">,</span></span></code></pre></div>
+<p>Kotlin parst
+<code>if (connected &gt; 0) A else B + if (bonded &gt; 0) C else D</code>
+als
+<code>if (connected &gt; 0) A else (B + if (bonded &gt; 0) C else D)</code>.
+Ergebnis:</p>
+<ul>
+<li><code>connected &gt; 0</code> → Anzeige ist <strong>nur</strong> „X
+verbunden”, „Y gekoppelt” wird unterschlagen.</li>
+<li><code>connected == 0</code> → die bonded-Info erscheint, aber
+angehängt an den leeren String.</li>
+</ul>
+<p><strong>Fix:</strong> jeden <code>if</code>-Ast klammern:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>text <span class="op">=</span> <span class="st">&quot;</span><span class="ss">${</span>devices<span class="op">.</span>size<span class="ss">}</span><span class="st"> gefunden&quot;</span> <span class="op">+</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>        <span class="op">(</span><span class="cf">if</span> <span class="op">(</span>connected <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="st">&quot; · </span><span class="ss">$connected</span><span class="st"> verbunden&quot;</span> <span class="cf">else</span> <span class="st">&quot;&quot;</span><span class="op">)</span> <span class="op">+</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="op">(</span><span class="cf">if</span> <span class="op">(</span>bonded <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="st">&quot; · </span><span class="ss">$bonded</span><span class="st"> gekoppelt&quot;</span> <span class="cf">else</span> <span class="st">&quot;&quot;</span><span class="op">),</span></span></code></pre></div>
+<h3 id="mainactivity.kt158-beyondboundspagecount-inkonsistent">3.2 🟠
+<code>MainActivity.kt:158</code> — <code>beyondBoundsPageCount</code>
+inkonsistent</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>beyondBoundsPageCount <span class="op">=</span> <span class="dv">6</span><span class="op">,</span>  <span class="co">// Keep all 7 pages alive in memory</span></span></code></pre></div>
+<p>Der <code>HorizontalPager</code> hat <strong>8 Seiten</strong>
+(<code>pageCount = { 8 }</code> in Zeile 42) — Bottom-Tabs 0–4, Channel
+Analysis (5), Security Audit (6), Map (7). Der Wert <code>6</code> hält
+nur 1 + 2·6 = 13 Seiten jenseits der aktuellen im Layout-Cache; bei 8
+Seiten reicht das <strong>zwar</strong>, aber der Kommentar („7 pages”)
+ist durch den Map-Zusatz veraltet. Entweder auf <code>7</code> erhöhen
+(alle Seiten immer warm) oder reduzieren und den Kommentar streichen —
+aktueller Zustand ist „funktioniert durch Zufall”, sollte explizit
+sein.</p>
+<h3 id="mapscreen.kt-mehrere-lifecycle-policy-probleme">3.3 🟠
+<code>MapScreen.kt</code> — Mehrere Lifecycle-/Policy-Probleme</h3>
+<ol type="1">
+<li><p><strong>Kein <code>onDetach()</code></strong> für
+<code>MapView</code> — osmdroid hält Tile-Loader-Threads + Bitmap-Cache,
+die per DisposableEffect freigegeben werden müssen, sonst Leak beim
+Tab-Wechsel im HorizontalPager:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>AndroidView<span class="op">(...,</span> onRelease <span class="op">=</span> <span class="op">{</span> it<span class="op">.</span>onDetach<span class="op">()</span> <span class="op">})</span></span></code></pre></div></li>
+<li><p><strong>User-Agent</strong> (Zeile 70):
+<code>Configuration.getInstance().userAgentValue = ctx.packageName</code>
+— die OSM-Foundation-Tile-Usage-Policy verlangt einen aussagekräftigen
+UA; reiner Package-Name kann zu IP-Bans oder Rate-Limiting führen.
+Empfehlung:
+<code>"ScannerApp/${BuildConfig.VERSION_NAME} (+contact)"</code>.</p></li>
+<li><p><strong>Auto-Recenter auf jedem Update</strong> (Zeile 109-111):
+der Map-Viewport springt bei jeder neuen/aktualisierten Entity auf den
+Durchschnitt zurück — das übergeht den User-Pan/Zoom. Zentrierung sollte
+nur einmalig beim ersten Datenladen geschehen (z. B.
+<code>LaunchedEffect(geoDevices.isNotEmpty())</code>).</p></li>
+<li><p><strong>Overlay-Rebuild</strong>:
+<code>map.overlays.clear()</code> + vollständige Neuerstellung aller
+Marker bei jedem Update — bei &gt;200 geotagten Netzen merklicher Lag.
+Besser: Diff über BSSID als Key.</p></li>
+<li><p><strong>Kein Empty-State / kein Loading-Indicator</strong> —
+leere Karte ohne Erklärung, wenn noch keine Geodaten vorhanden
+sind.</p></li>
+<li><p><strong>Tile-Cache-Pfad nicht explizit gesetzt</strong> —
+osmdroid fällt auf
+<code>Environment.getExternalStorageDirectory()</code> zurück, was auf
+modernen Androids (API 30+) mit Scoped Storage Probleme macht.
+<code>Configuration.getInstance().osmdroidBasePath</code> /
+<code>.osmdroidTileCache</code> sollten in <code>context.filesDir</code>
+umgebogen werden.</p></li>
+</ol>
+<h3 id="networkdiscovery-progress-total-inkonsistent">3.4 🟡
+<code>NetworkDiscovery</code> — Progress-Total inkonsistent</h3>
+<p>Der UI-seitige Fortschritt kann zwischen <code>total = 4</code> (wenn
+NetBIOS übersprungen wird) und <code>total = 5</code> springen. Siehe
+<code>NetworkDiscovery.kt</code> — in der UI ruckt die Progressbar. Kein
+Datenfehler, aber polish-würdig.</p>
+<h3 id="channelanalysisscreen.kt146-return-aus-composable-lambda">3.5 🟡
+<code>ChannelAnalysisScreen.kt:146</code> — <code>return</code> aus
+Composable-Lambda</h3>
+<p><code>return</code> innerhalb einer
+<code>Column { ... }</code>-Lambda macht einen non-local return aus dem
+umschließenden <code>@Composable</code>
+<code>ChannelAnalysisScreen()</code>. Funktioniert, weil
+Compose-Compiler es als inline-ähnlich behandelt, ist aber stilistisch
+unüblich und schlecht lesbar. Besser:
+<code>if (analysis == null) { EmptyState() } else { ... }</code> oder
+frühes <code>return@ChannelAnalysisScreen</code> mit benanntem
+Label.</p>
+<hr />
+<h2 id="reliability-correctness-risiken">4. Reliability / Correctness —
+Risiken</h2>
+<h3 id="appdatabase-fallbacktodestructivemigration">4.1 🔴
+<code>AppDatabase</code> —
+<code>fallbackToDestructiveMigration()</code></h3>
+<p>Jede Schema-Änderung (z. B. neue Spalte) löscht kommentarlos
+<strong>alle</strong> gespeicherten Geräte, Sessions und
+Signal-Verläufe. Das widerspricht dem Nutzer-Versprechen eines
+persistenten „Inventars”. Mit <code>exportSchema = true</code> liegt
+bereits ein Schema-JSON vor — <code>Migration</code>-Objekte sollten
+genutzt werden. Zumindest vor dem ersten Play-Store-Release fixen.</p>
+<h3 id="portscanner.waitfordata-thread.sleep-in-coroutine">4.2 🟠
+<code>PortScanner.waitForData</code> — <code>Thread.sleep</code> in
+Coroutine</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// util/PortScanner.kt — Auszug</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>Thread<span class="op">.</span>sleep<span class="op">(</span><span class="dv">50</span><span class="op">)</span></span></code></pre></div>
+<p>Blockiert den IO-Dispatcher-Thread. Bei 64er-Thread-Pool und
+200-Port-Scan mit Banner-Grabbing kann das zu Dispatcher-Starvation
+führen. Ersatz: <code>delay(50)</code> im
+<code>suspend</code>-Kontext.</p>
+<h3 id="gattexplorer-geteiltes-continuation-feld">4.3 🟠
+<code>GattExplorer</code> — geteiltes Continuation-Feld</h3>
+<p><code>readCharContinuation: CompletableDeferred&lt;ByteArray?&gt;</code>
+ist ein Single-Shared-Field und wird bei jedem neuen Read überschrieben.
+Solange die Aufrufe <strong>strikt sequenziell</strong> sind,
+funktioniert das. Eine spätere Parallelisierung (etwa „alle
+Characteristics parallel lesen”) würde lautlos falsche Ergebnisse
+liefern. Empfehlung:
+<code>ConcurrentHashMap&lt;UUID, CompletableDeferred&lt;...&gt;&gt;</code>
+oder per-Request-Continuation.</p>
+<h3 id="scanservice-hardgecodetes-8.8.8.8">4.4 🟡
+<code>ScanService</code> — hardgecodetes <code>8.8.8.8</code></h3>
+<p>Internet-Reachability via Ping auf <code>"8.8.8.8"</code>. In
+China/Firmennetzen geblockt → User sieht dauerhaft „offline”. Besser:
+konfigurierbar oder fallback-Chain (Gateway → 8.8.8.8 → 1.1.1.1).</p>
+<h3 id="scanservice.updateinterval-wasrunning-race">4.5 🟡
+<code>ScanService.updateInterval()</code> —
+<code>wasRunning</code>-Race</h3>
+<p>Der Job wird mit <code>.cancel()</code> beendet und danach neu
+gestartet — aber <code>isActive</code> kann zwischen Check und Restart
+kippen (sehr kurzes Fenster). In der Praxis kein beobachteter Bug, aber
+brüchig.</p>
+<h3 id="deprecated-apis-weiterhin-in-benutzung">4.6 🟡 Deprecated APIs
+weiterhin in Benutzung</h3>
+<ul>
+<li><code>WifiManager.connectionInfo</code>
+(<code>WifiScanner.kt:126,178</code>, <code>PingUtil.kt</code>) — auf
+API 31+ deprecated zugunsten <code>NetworkCallback</code> +
+<code>TransportInfo</code>. Funktioniert noch, wird aber irgendwann
+entfernt.</li>
+<li><code>DhcpInfo</code> (<code>PingUtil.kt</code>) — dto.</li>
+<li><code>Icons.Default.ArrowBack</code>
+(<code>InventoryScreen.kt:119</code>) — bereits
+<code>@Suppress("DEPRECATION")</code> annotiert, sollte auf
+<code>AutoMirrored.Filled.ArrowBack</code> migrieren.</li>
+</ul>
+<hr />
+<h2 id="performance-ux">5. Performance &amp; UX</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Stelle</th>
+<th>Beobachtung</th>
+<th>Hebel</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>InventoryScreen.kt:161-175</code></td>
+<td>6 Filter-Chips in einer starren <code>Row</code> ohne Scroll. Auf
+360dp-Geräten läuft das über die Bildschirmbreite hinaus und wird
+clipped.</td>
+<td>Auf <code>LazyRow</code> oder
+<code>Row(Modifier.horizontalScroll(...))</code> umstellen.</td>
+</tr>
+<tr class="even">
+<td><code>MapScreen.kt:77-114</code></td>
+<td>Bei jedem <code>devices</code>-Update wird
+<code>overlays.clear()</code> + voller Rebuild. Bei 500+ geotagten APs →
+spürbarer Ruck.</td>
+<td>Diff via
+<code>remember { mutableStateMapOf&lt;String, Marker&gt;() }</code>
+keyed auf BSSID.</td>
+</tr>
+<tr class="odd">
+<td><code>ChannelAnalysisScreen.kt</code></td>
+<td><code>verticalScroll(rememberScrollState())</code> + ChannelBarChart
++ SpectrumView — beides Canvas-heavy. Bei Recomposition wird alles neu
+gezeichnet.</td>
+<td><code>derivedStateOf</code> für
+<code>channels</code>/<code>recommendations</code>, damit nicht jeder
+Recompose das Chart neu rendert.</td>
+</tr>
+<tr class="even">
+<td><code>ExportManager</code> (PDF/CSV)</td>
+<td>Läuft im Repository-Scope, scheint bereits off-main — gut.</td>
+<td>Nur verifizieren, dass der Progress-Callback nicht die UI jitter
+macht.</td>
+</tr>
+<tr class="odd">
+<td><code>MonitorScreen</code></td>
+<td>History-Listen wachsen auf 120 Punkte, das ist fein.</td>
+<td>Kein Handlungsbedarf.</td>
+</tr>
+<tr class="even">
+<td><code>PortScanner</code> Quick-Scan</td>
+<td>20 Ports, adaptiv — gut dimensioniert.</td>
+<td><code>Thread.sleep</code> → <code>delay</code> (siehe §4.2).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="screens-nutzen-inkonsistente-scroll-container">5.1 Screens
+nutzen inkonsistente Scroll-Container</h3>
+<ul>
+<li><code>WifiScreen</code>, <code>InventoryScreen</code>,
+<code>SecurityAuditScreen</code> → <code>LazyColumn</code> ✅</li>
+<li><code>ChannelAnalysisScreen</code> →
+<code>verticalScroll(rememberScrollState())</code> mit vielen Elementen
+→ komplettes Layout immer im Baum</li>
+</ul>
+<p>Einheitlich auf LazyColumn wäre speichersparender.</p>
+<hr />
+<h2 id="code-qualität-tech-debt">6. Code-Qualität &amp; Tech-Debt</h2>
+<h3 id="fehlendes-fundament">6.1 Fehlendes Fundament</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Fehlt</th>
+<th>Auswirkung</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Keine Tests</strong> (weder Unit noch Instrumented)</td>
+<td>Jede Änderung riskiert Regression. Besonders kritisch bei
+BLE-State-Machines, Port-Scanner-Batching,
+MAC-Vendor-Lookup-Parsing.</td>
+</tr>
+<tr class="even">
+<td><strong>Kein Linter</strong> (ktlint/detekt nicht konfiguriert)</td>
+<td>Der Bug aus §3.1 wäre durch jede statische Analyse gefangen
+worden.</td>
+</tr>
+<tr class="odd">
+<td><strong><code>isMinifyEnabled = false</code></strong> im
+Release-Build</td>
+<td>APK größer als nötig, kein Class-/Method-Shrinking, keine
+Obfuskation, keine tote-Code-Elimination.</td>
+</tr>
+<tr class="even">
+<td><strong>Keine CI</strong></td>
+<td>Keine automatische Build-Verifikation auf PR-Ebene.</td>
+</tr>
+</tbody>
+</table>
+<p>Konkrete Minimalschritte: - <code>ktlint-gradle</code> in
+<code>build.gradle.kts</code> aufnehmen. - JUnit-4-Tests für pure
+Util-Klassen (<code>MacVendorLookup</code>,
+<code>ChannelAnalyzer</code>, <code>SecurityAuditor</code>,
+<code>frequencyToChannel</code>, CSV-Escape) — das sind alles
+deterministische Funktionen ohne Android-Kontext. - R8 aktivieren;
+ProGuard-Regeln für Room/Compose/osmdroid pflegen.</p>
+<h3 id="suppresslintmissingpermission-flächig">6.2
+<code>@SuppressLint("MissingPermission")</code> flächig</h3>
+<p><code>WifiScanner</code>, <code>BluetoothScanner</code>,
+<code>NetworkDiscovery</code> setzen den Suppression class-weit. Das ist
+pragmatisch, weil die UI die Permissions garantiert — aber jede neue
+Util-Methode, die ohne Permission-Check aufgerufen würde, wird lautlos
+crashen. Lösung: kleinere Scope-Suppressions (pro Methode) oder
+<code>PermissionChecker.hasPermission(...)</code>-Wrapper.</p>
+<h3 id="inkonsistenzen-doku-drift">6.3 Inkonsistenzen &amp;
+Doku-Drift</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Stelle</th>
+<th>Problem</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>AGENTS.md</code></td>
+<td>Sagt „Target SDK 34”, <code>build.gradle.kts</code> nutzt 35.</td>
+</tr>
+<tr class="even">
+<td><code>README.md</code></td>
+<td>Erwähnt 34 Dateien / 10.400 Zeilen — aktuelle Zahl ~11.060 Zeilen,
+Zähler ist veraltet nach dem Map-Patch.</td>
+</tr>
+<tr class="odd">
+<td><code>MainActivity.kt:158</code></td>
+<td>Kommentar „7 pages” vs. 8 tatsächlich (siehe §3.2).</td>
+</tr>
+<tr class="even">
+<td><code>NetworkDiscovery</code> progress</td>
+<td>4 vs. 5 Phasen — UI-Kommentar vs. Logik.</td>
+</tr>
+<tr class="odd">
+<td>Sprach-Mix</td>
+<td>Code-Kommentare teils Deutsch (<code>MapScreen.kt</code>), teils
+Englisch (<code>WifiScanner.kt</code>). Nicht kritisch, aber für eine
+Open-Source-Veröffentlichung vereinheitlichen.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="magische-zahlen-duplikate">6.4 Magische Zahlen / Duplikate</h3>
+<ul>
+<li>Signal-Bucket-Schwellen (<code>-50</code>, <code>-67</code>,
+<code>-80</code>) sind in mehreren Stellen (<code>SignalHelper</code>,
+<code>SecurityAuditor</code>, <code>BluetoothScreen</code>) verteilt.
+Sollten in einer <code>SignalThresholds</code>-Konstantenklasse
+liegen.</li>
+<li>CSV-Separator <code>;</code> und BOM sind in
+<code>ExportManager</code> und <code>WardrivingTracker</code> separat
+definiert.</li>
+</ul>
+<hr />
+<h2 id="cross-reference-zum-security_review.md">7. Cross-Reference zum
+<code>SECURITY_REVIEW.md</code></h2>
+<p>Ergänzend — die dortigen Findings werden <strong>nicht
+wiederholt</strong>, nur verlinkt:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Finding dort</th>
+<th>Relevanz hier</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>F-1 (CSV-Formula-Injection)</td>
+<td>Gleiche Stelle, die auch in §6.4 als Duplikat-Quelle genannt ist —
+Fix in einer zentralen <code>CsvEscape</code>-Utility schlägt zwei
+Fliegen.</td>
+</tr>
+<tr class="even">
+<td>H-1 (<code>allowBackup=true</code>)</td>
+<td>Koppelt sich mit §4.1: wenn das DB-Schema bricht, könnte ein
+Backup-Restore die App in einen inkonsistenten Zustand versetzen. Beide
+Themen zusammen angehen.</td>
+</tr>
+<tr class="odd">
+<td>H-3 (<code>isMinifyEnabled=false</code>)</td>
+<td>Gleiches Finding wie hier in §6.1 — nur aus anderer
+Perspektive.</td>
+</tr>
+<tr class="even">
+<td>H-5 (UPnP Host-Scoping)</td>
+<td>In diesem Review nicht erneut diskutiert.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="was-richtig-gut-gemacht-ist">8. Was richtig gut gemacht ist</h2>
+<p>Damit nicht nur Kritik im Protokoll steht:</p>
+<ul>
+<li><strong><code>DeviceDao.upsertDevice</code></strong> — das
+<code>@Transaction</code>-basierte „INSERT oder UPDATE-mit-Merge”
+inklusive „Name nur überschreiben wenn neuer nicht-leer” ist eine der
+saubersten Lösungen, die ich für dieses Problem gesehen habe.</li>
+<li><strong><code>WifiScanner.startScan</code></strong> hat
+vollständiges Cleanup: Receiver-Unregister, Timeout-Cancellation,
+SecurityException-Handling, Fallback auf <code>scanResults</code>-Cache
+bei <code>false</code> aus <code>startScan()</code>. Fast
+lehrbuchhaft.</li>
+<li><strong><code>SecurityAuditor</code></strong> produziert
+strukturierte, i18n-fähige Findings mit Severity-Farben und
+Remediation-Text — nicht nur ein Score.</li>
+<li><strong>MAC-Vendor-DB</strong> und <strong>BLE-UUID-DB</strong> als
+internes Lookup statt Online-API = offline-fähig und keine
+Datenschutz-Leaks.</li>
+<li><strong>FileProvider + <code>cache-path</code></strong> für Exports
+statt MediaStore-Hacks = korrekt.</li>
+<li><strong>Distance-Schätzung</strong> via Log-Distance-Pfadverlust
+(<code>WifiScanner.kt:217</code>) — seriös umgesetzt, wenn auch nur
+grob.</li>
+</ul>
+<hr />
+<h2 id="priorisierte-empfehlungen">9. Priorisierte Empfehlungen</h2>
+<h3 id="must-fix-vor-nächstem-release">Must-fix vor nächstem
+Release</h3>
+<ol type="1">
+<li><strong>§3.1</strong> — BluetoothScreen operator-precedence bug
+(2-Zeilen-Fix).</li>
+<li><strong>§4.1</strong> — Room-Destructive-Migration ersetzen (auch
+wenn Version 1 ist: jetzt das Gerüst bauen, bevor Schema bricht).</li>
+<li><strong>§3.3</strong> — <code>MapView.onDetach()</code> im
+DisposableEffect + User-Agent korrigieren.</li>
+<li><strong>F-1</strong> aus <code>SECURITY_REVIEW.md</code>
+(CSV-Formula-Injection).</li>
+</ol>
+<h3 id="should-fix-ein-sprint">Should-fix (ein Sprint)</h3>
+<ol start="5" type="1">
+<li><strong>§4.2</strong> — <code>Thread.sleep</code> →
+<code>delay</code> in PortScanner.</li>
+<li><strong>§6.1</strong> — ktlint + ein paar Unit-Tests für die
+Util-Schicht.</li>
+<li><strong>§3.2 / §3.3 Pkt. 3</strong> —
+<code>beyondBoundsPageCount</code> &amp; Map-Auto-Recenter gerade
+ziehen.</li>
+<li><strong>§6.3</strong> — Doku-Drift beheben (AGENTS.md Target-SDK,
+MainActivity-Kommentar).</li>
+</ol>
+<h3 id="nice-to-have-tech-debt-sprint">Nice-to-have
+(Tech-Debt-Sprint)</h3>
+<ol start="9" type="1">
+<li><strong>§4.3</strong> — GattExplorer-Continuation pro-Request.</li>
+<li><strong>§6.1</strong> — R8/ProGuard aktivieren; Regeln für
+Room/osmdroid testen.</li>
+<li><strong>§5</strong> — InventoryScreen Filter → LazyRow, Map-Diff
+statt Clear+Rebuild.</li>
+<li><strong>§4.6</strong> — Migration der deprecated
+WifiManager-APIs.</li>
+</ol>
+<hr />
+<h2 id="gesamtnote">10. Gesamtnote</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Dimension</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Architektur</td>
+<td>A</td>
+</tr>
+<tr class="even">
+<td>Code-Stil</td>
+<td>B+</td>
+</tr>
+<tr class="odd">
+<td>Korrektheit</td>
+<td>B (wegen §3.1 + §4.1 + §4.2)</td>
+</tr>
+<tr class="even">
+<td>Reliability</td>
+<td>B</td>
+</tr>
+<tr class="odd">
+<td>Test-Abdeckung</td>
+<td>F</td>
+</tr>
+<tr class="even">
+<td>Dokumentation</td>
+<td>B</td>
+</tr>
+<tr class="odd">
+<td>Security</td>
+<td>B (siehe <code>SECURITY_REVIEW.md</code>)</td>
+</tr>
+<tr class="even">
+<td><strong>Gesamt</strong></td>
+<td><strong>B+</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Mit den vier „Must-fix”-Punkten wird daraus ein solides A-.</p>

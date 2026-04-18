@@ -18,17 +18,17 @@ import java.time.format.DateTimeFormatter
 // ─── Data Models ────────────────────────────────────────────────
 
 data class WardrivingEntry(
-    val ssid: String,
-    val bssid: String,
-    val signalStrength: Int,
-    val frequency: Int,
-    val channel: Int,
-    val securityType: String,
-    val latitude: Double,
-    val longitude: Double,
-    val altitude: Double?,
-    val accuracy: Float?,
-    val timestamp: Instant
+        val ssid: String,
+        val bssid: String,
+        val signalStrength: Int,
+        val frequency: Int,
+        val channel: Int,
+        val securityType: String,
+        val latitude: Double,
+        val longitude: Double,
+        val altitude: Double?,
+        val accuracy: Float?,
+        val timestamp: Instant
 )
 
 // ─── GPS Tracker ────────────────────────────────────────────────
@@ -41,9 +41,11 @@ class WardrivingTracker(private val context: Context) {
     }
 
     private val locationManager: LocationManager? =
-        try {
-            context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        } catch (_: Exception) { null }
+            try {
+                context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            } catch (_: Exception) {
+                null
+            }
 
     private var lastLocation: Location? = null
     private var locationListener: LocationListener? = null
@@ -52,9 +54,7 @@ class WardrivingTracker(private val context: Context) {
     var isTracking: Boolean = false
         private set
 
-    /**
-     * Start GPS tracking for wardriving.
-     */
+    /** Start GPS tracking for wardriving. */
     fun startTracking() {
         if (isTracking) return
         if (locationManager == null) {
@@ -62,29 +62,35 @@ class WardrivingTracker(private val context: Context) {
             return
         }
 
-        locationListener = object : LocationListener {
-            override fun onLocationChanged(location: Location) {
-                lastLocation = location
-            }
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
-            @Deprecated("Deprecated in Java")
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-        }
+        locationListener =
+                object : LocationListener {
+                    override fun onLocationChanged(location: Location) {
+                        lastLocation = location
+                    }
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                    @Deprecated("Deprecated in Java")
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                }
 
         try {
             // Try GPS first, then network
-            val provider = when {
-                locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ->
-                    LocationManager.GPS_PROVIDER
-                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ->
-                    LocationManager.NETWORK_PROVIDER
-                else -> null
-            }
+            val provider =
+                    when {
+                        locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ->
+                                LocationManager.GPS_PROVIDER
+                        locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ->
+                                LocationManager.NETWORK_PROVIDER
+                        else -> null
+                    }
 
             if (provider != null) {
                 locationManager.requestLocationUpdates(
-                    provider, 2000L, 1f, locationListener!!, Looper.getMainLooper()
+                        provider,
+                        2000L,
+                        1f,
+                        locationListener!!,
+                        Looper.getMainLooper()
                 )
                 // Get last known location as starting point
                 lastLocation = locationManager.getLastKnownLocation(provider)
@@ -110,27 +116,27 @@ class WardrivingTracker(private val context: Context) {
         isTracking = false
     }
 
-    /**
-     * Record WiFi networks with current GPS position.
-     */
+    /** Record WiFi networks with current GPS position. */
     fun recordNetworks(networks: List<WifiNetwork>) {
         val location = lastLocation ?: return
 
         val now = Instant.now()
         for (network in networks) {
-            entries.add(WardrivingEntry(
-                ssid = network.ssid,
-                bssid = network.bssid,
-                signalStrength = network.signalStrength,
-                frequency = network.frequency,
-                channel = network.channel,
-                securityType = network.securityType,
-                latitude = location.latitude,
-                longitude = location.longitude,
-                altitude = if (location.hasAltitude()) location.altitude else null,
-                accuracy = if (location.hasAccuracy()) location.accuracy else null,
-                timestamp = now
-            ))
+            entries.add(
+                    WardrivingEntry(
+                            ssid = network.ssid,
+                            bssid = network.bssid,
+                            signalStrength = network.signalStrength,
+                            frequency = network.frequency,
+                            channel = network.channel,
+                            securityType = network.securityType,
+                            latitude = location.latitude,
+                            longitude = location.longitude,
+                            altitude = if (location.hasAltitude()) location.altitude else null,
+                            accuracy = if (location.hasAccuracy()) location.accuracy else null,
+                            timestamp = now
+                    )
+            )
         }
     }
 
@@ -139,56 +145,62 @@ class WardrivingTracker(private val context: Context) {
     fun getUniqueNetworks(): Int = entries.map { it.bssid }.distinct().size
     fun getCurrentLocation(): Location? = lastLocation
 
-    fun clearEntries() { entries.clear() }
+    fun clearEntries() {
+        entries.clear()
+    }
 
     // ─── Export Functions ────────────────────────────────────────
 
-    /**
-     * Export as WiGLE-compatible CSV.
-     */
+    /** Export as WiGLE-compatible CSV. */
     fun exportWigleCsv(file: File) {
         FileOutputStream(file).bufferedWriter(Charsets.UTF_8).use { writer ->
             // WiGLE header
-            writer.write("WigleWifi-1.4,appRelease=1.0,model=Android,release=14,device=ScannerApp,display=ScannerApp,board=,brand=")
+            writer.write(
+                    "WigleWifi-1.4,appRelease=1.0,model=Android,release=14,device=ScannerApp,display=ScannerApp,board=,brand="
+            )
             writer.newLine()
-            writer.write("MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type")
+            writer.write(
+                    "MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type"
+            )
             writer.newLine()
 
-            val formatter = DateTimeFormatter
-                .ofPattern("yyyy-MM-dd HH:mm:ss")
-                .withZone(ZoneId.systemDefault())
+            val formatter =
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                            .withZone(ZoneId.systemDefault())
 
             for (entry in entries) {
-                val row = listOf(
-                    entry.bssid,
-                    escapeCsv(entry.ssid),
-                    "[${entry.securityType}]",
-                    formatter.format(entry.timestamp),
-                    entry.channel.toString(),
-                    entry.signalStrength.toString(),
-                    "%.6f".format(entry.latitude),
-                    "%.6f".format(entry.longitude),
-                    entry.altitude?.let { "%.1f".format(it) } ?: "",
-                    entry.accuracy?.let { "%.1f".format(it) } ?: "",
-                    "WIFI"
-                ).joinToString(",")
+                val row =
+                        listOf(
+                                        entry.bssid,
+                                        CsvEscape.escape(entry.ssid, separator = ','),
+                                        "[${entry.securityType}]",
+                                        formatter.format(entry.timestamp),
+                                        entry.channel.toString(),
+                                        entry.signalStrength.toString(),
+                                        "%.6f".format(entry.latitude),
+                                        "%.6f".format(entry.longitude),
+                                        entry.altitude?.let { "%.1f".format(it) } ?: "",
+                                        entry.accuracy?.let { "%.1f".format(it) } ?: "",
+                                        "WIFI"
+                                )
+                                .joinToString(",")
                 writer.write(row)
                 writer.newLine()
             }
         }
     }
 
-    /**
-     * Export as KML for Google Earth / Maps.
-     */
+    /** Export as KML for Google Earth / Maps. */
     fun exportKml(file: File) {
-        val uniqueByBssid = entries.groupBy { it.bssid }.mapValues { (_, v) ->
-            // Take entry with strongest signal
-            v.maxByOrNull { it.signalStrength }!!
-        }
+        val uniqueByBssid =
+                entries.groupBy { it.bssid }.mapValues { (_, v) ->
+                    // Take entry with strongest signal
+                    v.maxByOrNull { it.signalStrength }!!
+                }
 
         FileOutputStream(file).bufferedWriter(Charsets.UTF_8).use { writer ->
-            writer.write("""<?xml version="1.0" encoding="UTF-8"?>
+            writer.write(
+                    """<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
     <name>Netzwerk-Scanner Wardriving</name>
@@ -199,19 +211,22 @@ class WardrivingTracker(private val context: Context) {
     <Style id="wpa"><IconStyle><color>ff00ff00</color><scale>0.8</scale></IconStyle></Style>
     <Style id="wpa2"><IconStyle><color>ff00cc00</color><scale>0.8</scale></IconStyle></Style>
     <Style id="wpa3"><IconStyle><color>ff009900</color><scale>0.8</scale></IconStyle></Style>
-""")
+"""
+            )
 
             for ((bssid, entry) in uniqueByBssid) {
-                val style = when (entry.securityType) {
-                    "Offen" -> "open"
-                    "WEP" -> "wep"
-                    "WPA" -> "wpa"
-                    "WPA2" -> "wpa2"
-                    "WPA3" -> "wpa3"
-                    else -> "wpa2"
-                }
+                val style =
+                        when (entry.securityType) {
+                            "Offen" -> "open"
+                            "WEP" -> "wep"
+                            "WPA" -> "wpa"
+                            "WPA2" -> "wpa2"
+                            "WPA3" -> "wpa3"
+                            else -> "wpa2"
+                        }
 
-                writer.write("""
+                writer.write(
+                        """
     <Placemark>
         <name>${escapeXml(entry.ssid)}</name>
         <description>BSSID: $bssid
@@ -223,7 +238,8 @@ Sicherheit: ${entry.securityType}</description>
             <coordinates>${entry.longitude},${entry.latitude}${entry.altitude?.let { ",$it" } ?: ""}</coordinates>
         </Point>
     </Placemark>
-""")
+"""
+                )
             }
 
             writer.write("""</Document>
@@ -235,16 +251,10 @@ Sicherheit: ${entry.securityType}</description>
         stopTracking()
     }
 
-    private fun escapeCsv(value: String): String {
-        return if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            "\"${value.replace("\"", "\"\"")}\""
-        } else value
-    }
-
     private fun escapeXml(value: String): String {
         return value.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
     }
 }

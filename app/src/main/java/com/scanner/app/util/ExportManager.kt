@@ -120,8 +120,8 @@ class ExportManager(private val context: Context) {
             // Data rows
             for (device in devices) {
                 val row = listOf(
-                    escapeCsv(device.name),
-                    escapeCsv(device.customLabel ?: ""),
+                    CsvEscape.escape(device.name),
+                    CsvEscape.escape(device.customLabel ?: ""),
                     device.address,
                     device.deviceCategory.displayName(),
                     device.lastSignalStrength?.toString() ?: "",
@@ -129,8 +129,8 @@ class ExportManager(private val context: Context) {
                     dateFormatter.format(device.lastSeen),
                     device.timesSeen.toString(),
                     if (device.isFavorite) "Ja" else "Nein",
-                    escapeCsv(device.notes ?: ""),
-                    escapeCsv(device.metadata ?: "")
+                    CsvEscape.escape(device.notes ?: ""),
+                    CsvEscape.escape(device.metadata ?: "")
                 ).joinToString(";")
 
                 writer.write(row)
@@ -374,9 +374,4 @@ class ExportManager(private val context: Context) {
         } else devices
     }
 
-    private fun escapeCsv(value: String): String {
-        return if (value.contains(";") || value.contains("\"") || value.contains("\n")) {
-            "\"${value.replace("\"", "\"\"")}\""
-        } else value
-    }
 }

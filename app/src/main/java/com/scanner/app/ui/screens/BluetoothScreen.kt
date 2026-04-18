@@ -140,8 +140,8 @@ fun BluetoothScreen() {
                     val bonded = devices.count { it.bondState == BondState.BONDED }
                     Text(
                         text = "${devices.size} gefunden" +
-                                if (connected > 0) " · $connected verbunden" else "" +
-                                        if (bonded > 0) " · $bonded gekoppelt" else "",
+                                (if (connected > 0) " · $connected verbunden" else "") +
+                                (if (bonded > 0) " · $bonded gekoppelt" else ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
