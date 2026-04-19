@@ -2,50 +2,49 @@ package com.scanner.app.ui.screens
 
 import android.Manifest
 import android.os.Build
-import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.scanner.app.data.WifiNetwork
-import com.scanner.app.ui.components.ChannelBarChart
-import com.scanner.app.ui.components.SpectrumView
+import com.scanner.app.ui.components.*
+import com.scanner.app.ui.theme.JetBrainsMonoFamily
+import com.scanner.app.ui.theme.Spectrum
 import com.scanner.app.util.ChannelAnalysis
 import com.scanner.app.util.ChannelAnalyzer
-import com.scanner.app.util.ChannelRecommendation
+import com.scanner.app.util.ChannelInfo
 import com.scanner.app.util.WifiScanner
 
-/**
- * Main screen for WiFi spectrum and channel congested analysis.
- * Visualizes channel usage across 2.4 GHz and 5 GHz bands and provides
- * scored recommendations for optimal router configuration.
- */
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun ChannelAnalysisScreen() {
     val context = LocalContext.current
     val wifiScanner = remember { WifiScanner(context) }
 
-    var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }
     var analysis by remember { mutableStateOf<ChannelAnalysis?>(null) }
     var isScanning by remember { mutableStateOf(false) }
-    var selectedBand by remember { mutableStateOf(0) }  // 0 = 2.4 GHz, 1 = 5 GHz
+    var selectedBand by remember { mutableStateOf(0) } // 0=2.4GHz 1=5GHz
 
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -56,9 +55,7 @@ fun ChannelAnalysisScreen() {
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
 
-    DisposableEffect(Unit) {
-        onDispose { wifiScanner.cleanup() }
-    }
+    DisposableEffect(Unit) { onDispose { wifiScanner.cleanup() } }
 
     fun doScan() {
         if (!wifiScanner.isWifiEnabled()) return
@@ -66,7 +63,6 @@ fun ChannelAnalysisScreen() {
         isScanning = true
         wifiScanner.startScan { results ->
             try {
-                networks = results
                 analysis = ChannelAnalyzer.analyze(results)
             } catch (e: Exception) {
                 android.util.Log.e("ChannelAnalysis", "Error analyzing", e)
@@ -75,373 +71,404 @@ fun ChannelAnalysisScreen() {
         }
     }
 
+    val a = analysis
+    val channels = if (selectedBand == 0) a?.channels24 ?: emptyList() else a?.channels5 ?: emptyList()
+    val recommendations = if (selectedBand == 0) a?.recommendations24 ?: emptyList() else a?.recommendations5 ?: emptyList()
+    val topRec = recommendations.firstOrNull()
+    val topChannel = topRec?.let { r -> channels.find { it.channel == r.channel } }
+    val connectedCh = if (
+        (selectedBand == 0 && a?.connectedBand == "2.4 GHz") ||
+        (selectedBand == 1 && a?.connectedBand == "5 GHz")
+    ) a?.connectedChannel else null
+
+    val headerStats = if (a != null && topRec != null) listOf(
+        HeaderStat("CH${topRec.channel}", "BEST"),
+        HeaderStat("${(topChannel?.overlapScore?.times(100f))?.toInt() ?: 0}%", "UTIL"),
+        HeaderStat("${channels.count { it.networkCount > 0 }}", "AKTIV"),
+    ) else emptyList()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .background(Spectrum.Surface)
+            .verticalScroll(rememberScrollState()),
     ) {
+        SpectrumHeader(
+            kicker = "CH",
+            subtitle = "Spektrum",
+            scanning = isScanning,
+            onScan = {
+                if (!permissionState.allPermissionsGranted) permissionState.launchMultiplePermissionRequest()
+                else doScan()
+            },
+            stats = headerStats,
+        )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Kanalanalyse",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                analysis?.let { a ->
-                    Text(
-                        text = "${a.totalNetworks} Netzwerke · ${a.networks24Count} auf 2.4 GHz · ${a.networks5Count} auf 5 GHz",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            FilledTonalButton(
-                onClick = {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    } else doScan()
-                },
-                enabled = !isScanning
-            ) {
-                if (isScanning) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Scannen")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isScanning) "Scanne..." else "Scannen")
-            }
-        }
-
-
-        if (analysis == null) {
+        if (a == null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp),
-                contentAlignment = Alignment.Center
+                    .height(320.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Outlined.Analytics,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Tippe auf \"Scannen\" für die\nWLAN-Kanalanalyse.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        "— —",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 40.sp,
+                        color = Spectrum.OnSurfaceFaint,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "SCAN STARTEN",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.15.em,
+                        color = Spectrum.OnSurfaceDim,
                     )
                 }
             }
-            return
+            return@Column
         }
 
-        val a = analysis!!
-
+        Spacer(Modifier.height(12.dp))
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FilterChip(
+            SpectrumFilterChip(
+                label = "2.4 GHZ",
                 selected = selectedBand == 0,
+                count = a.networks24Count,
                 onClick = { selectedBand = 0 },
-                label = { Text("2.4 GHz (${a.networks24Count})") },
-                leadingIcon = if (selectedBand == 0) {
-                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                } else null
             )
-            FilterChip(
+            SpectrumFilterChip(
+                label = "5 GHZ",
                 selected = selectedBand == 1,
+                count = a.networks5Count,
                 onClick = { selectedBand = 1 },
-                label = { Text("5 GHz (${a.networks5Count})") },
-                leadingIcon = if (selectedBand == 1) {
-                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                } else null
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
-
-        a.connectedChannel?.let { ch ->
-            val connectedBand = a.connectedBand ?: ""
-            if ((selectedBand == 0 && connectedBand == "2.4 GHz") ||
-                (selectedBand == 1 && connectedBand == "5 GHz")
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Outlined.Wifi,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Aktuell verbunden auf Kanal $ch ($connectedBand)",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-
-
-        val channels = if (selectedBand == 0) a.channels24 else a.channels5
-        val connectedCh = if (
-            (selectedBand == 0 && a.connectedBand == "2.4 GHz") ||
-            (selectedBand == 1 && a.connectedBand == "5 GHz")
-        ) a.connectedChannel else null
-
-        ChannelBarChart(
-            channels = channels,
-            connectedChannel = connectedCh,
-            title = "Kanalauslastung",
+        // Bar chart card
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-
-        SpectrumView(
-            channels = channels,
-            band = if (selectedBand == 0) "2.4 GHz" else "5 GHz",
-            connectedChannel = connectedCh,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-
-        val recommendations = if (selectedBand == 0) a.recommendations24 else a.recommendations5
-
-        if (recommendations.isNotEmpty()) {
-            Text(
-                text = "EMPFOHLENE KANÄLE",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-
-            recommendations.take(3).forEachIndexed { index, rec ->
-                RecommendationCard(
-                    recommendation = rec,
-                    rank = index + 1,
-                    isCurrentChannel = rec.channel == connectedCh,
+                .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp))
+                .background(Spectrum.SurfaceRaised),
+        ) {
+            Column(Modifier.padding(top = 12.dp, bottom = 8.dp)) {
+                SpectrumKicker(
+                    "KANALAUSLASTUNG",
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                ChBarChart(
+                    channels = channels,
+                    connectedChannel = connectedCh,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 3.dp)
+                        .height(160.dp)
+                        .padding(horizontal = 8.dp),
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Legende",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LegendItem(Color(0xFF4CAF50), "Frei — kaum Auslastung")
-                LegendItem(Color(0xFFFF9800), "Moderat — einige Netzwerke")
-                LegendItem(Color(0xFFF44336), "Stark ausgelastet")
-                LegendItem(MaterialTheme.colorScheme.primary, "Dein Netzwerk")
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = if (selectedBand == 0)
-                        "Tipp: Verwende die Kanäle 1, 6 oder 11 — diese überlappen sich nicht gegenseitig."
-                    else
-                        "Tipp: Im 5-GHz-Band überlappen sich Kanäle kaum. Wähle einen Kanal mit wenig Nachbarn.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(100.dp))
-    }
-}
-
-
-
-/**
- * UI component for displaying a specific channel recommendation with its score and rationale.
- */
-@Composable
-fun RecommendationCard(
-    recommendation: ChannelRecommendation,
-    rank: Int,
-    isCurrentChannel: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val scoreColor = when {
-        recommendation.score >= 0.7f -> Color(0xFF4CAF50)
-        recommendation.score >= 0.4f -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
-    }
-
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isCurrentChannel)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Rank badge
+        // Top recommendation card
+        if (topRec != null) {
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(scoreColor.copy(alpha = 0.15f))
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Spectrum.SurfaceRaised)
+                    .padding(16.dp),
             ) {
-                Text(
-                    text = "#$rank",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = scoreColor
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Kanal ${recommendation.channel}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    if (isCurrentChannel) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
+                Column {
+                    SpectrumKicker("EMPFEHLUNG")
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            "${topRec.channel}",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 56.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Spectrum.Accent,
+                            lineHeight = 56.sp,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.padding(bottom = 8.dp)) {
                             Text(
-                                text = "Aktuell",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                "KANAL",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 10.sp,
+                                color = Spectrum.OnSurfaceDim,
+                                letterSpacing = 0.15.em,
+                            )
+                            Text(
+                                if (selectedBand == 0) "2.4 GHZ BAND" else "5 GHZ BAND",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 11.sp,
+                                color = Spectrum.OnSurfaceDim,
                             )
                         }
                     }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        topRec.reason,
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 12.sp,
+                        color = Spectrum.OnSurface,
+                    )
+                    topChannel?.let { ch ->
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                            ChStatPill("${(ch.overlapScore * 100f).toInt()}%", "UTIL")
+                            ChStatPill("${ch.networkCount}", "APs")
+                            ChStatPill("${(topRec.score * 100f).toInt()}%", "SCORE")
+                        }
+                    }
                 }
-                Text(
-                    text = recommendation.reason,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            // #2 and #3 picks
+            val secondary = recommendations.drop(1).take(2)
+            if (secondary.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    secondary.forEachIndexed { i, rec ->
+                        val recCh = channels.find { it.channel == rec.channel }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Spectrum.SurfaceRaised)
+                                .padding(12.dp),
+                        ) {
+                            Column {
+                                Text(
+                                    "#${i + 2}",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 9.sp,
+                                    color = Spectrum.OnSurfaceDim,
+                                    letterSpacing = 0.12.em,
+                                )
+                                Text(
+                                    "CH ${rec.channel}",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Spectrum.OnSurface,
+                                )
+                                Text(
+                                    "${(rec.score * 100f).toInt()}% score",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 10.sp,
+                                    color = utilColor((recCh?.overlapScore?.times(100f)?.toInt()) ?: 0),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Legend
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ChLegendDot(Spectrum.Accent, "FREI")
+            ChLegendDot(Spectrum.Warning, "MED")
+            ChLegendDot(Spectrum.Danger, "BELEGT")
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = if (selectedBand == 0)
+                "Tipp: Verwende Kanal 1, 6 oder 11 — diese überlappen sich nicht."
+            else
+                "Tipp: Im 5-GHz-Band überlappen sich Kanäle kaum. Wähle einen mit wenig Nachbarn.",
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = Spectrum.OnSurfaceDim,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        Spacer(Modifier.height(100.dp))
+    }
+}
+
+@Composable
+private fun ChBarChart(
+    channels: List<ChannelInfo>,
+    connectedChannel: Int?,
+    modifier: Modifier = Modifier,
+) {
+    if (channels.isEmpty()) return
+
+    val density = LocalDensity.current
+    val gridColor = Spectrum.GridLine
+    val onSurfaceDimColor = Spectrum.OnSurfaceDim
+    val accentColor = Spectrum.Accent
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val labelHeightPx = with(density) { 20.dp.toPx() }
+        val chartH = h - labelHeightPx
+        val barStep = w / channels.size
+        val barPad = barStep * 0.15f
+        val barW = barStep - barPad * 2f
+
+        // Oscilloscope grid (4 horizontal lines)
+        listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { frac ->
+            val y = chartH * (1f - frac)
+            drawLine(
+                color = gridColor,
+                start = Offset(0f, y),
+                end = Offset(w, y),
+                strokeWidth = 1f,
+            )
+        }
+
+        channels.forEachIndexed { i, ch ->
+            val barLeft = i * barStep + barPad
+            val barH = (ch.overlapScore * chartH).coerceAtLeast(2f)
+            val barTop = chartH - barH
+            val barColor = utilColor((ch.overlapScore * 100f).toInt())
+
+            // Highlight column for connected channel
+            if (ch.channel == connectedChannel) {
+                drawRect(
+                    color = accentColor.copy(alpha = 0.08f),
+                    topLeft = Offset(i * barStep, 0f),
+                    size = Size(barStep, chartH),
                 )
             }
 
-            // Score bar
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "${(recommendation.score * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = scoreColor
+            // Bar fill
+            drawRect(
+                color = barColor.copy(alpha = 0.85f),
+                topLeft = Offset(barLeft, barTop),
+                size = Size(barW, barH),
+            )
+
+            // Accent cap on connected channel bar
+            if (ch.channel == connectedChannel) {
+                drawLine(
+                    color = accentColor,
+                    start = Offset(barLeft, barTop),
+                    end = Offset(barLeft + barW, barTop),
+                    strokeWidth = 2f,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(recommendation.score)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(scoreColor)
+            }
+
+            val barCx = barLeft + barW / 2f
+
+            // AP count badge above bar
+            if (ch.networkCount > 0) {
+                val badgeR = with(density) { 8.dp.toPx() }
+                val badgeCy = (barTop - badgeR - with(density) { 3.dp.toPx() }).coerceAtLeast(badgeR + 2f)
+                drawCircle(
+                    color = barColor.copy(alpha = 0.18f),
+                    radius = badgeR,
+                    center = Offset(barCx, badgeCy),
+                )
+                drawIntoCanvas { canvas ->
+                    val p = android.graphics.Paint().apply {
+                        color = barColor.toArgb()
+                        textSize = with(density) { 8.dp.toPx() }
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
+                    }
+                    canvas.nativeCanvas.drawText(
+                        ch.networkCount.toString(),
+                        barCx,
+                        badgeCy + p.textSize * 0.35f,
+                        p,
                     )
                 }
+            }
+
+            // Channel label
+            drawIntoCanvas { canvas ->
+                val show = channels.size <= 14 || ch.networkCount > 0 ||
+                    ch.channel in listOf(1, 6, 11, 36, 100, 149)
+                if (!show) return@drawIntoCanvas
+                val p = android.graphics.Paint().apply {
+                    color = if (ch.channel == connectedChannel) accentColor.toArgb()
+                            else onSurfaceDimColor.toArgb()
+                    textSize = with(density) { 8.dp.toPx() }
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    isAntiAlias = true
+                }
+                canvas.nativeCanvas.drawText(
+                    ch.channel.toString(),
+                    barCx,
+                    chartH + labelHeightPx * 0.8f,
+                    p,
+                )
             }
         }
     }
 }
 
-
-
-/**
- * Small indicator for the spectrum legend.
- */
 @Composable
-fun LegendItem(color: Color, text: String) {
+private fun ChStatPill(value: String, label: String) {
+    Row(
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            value,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 13.sp,
+            color = Spectrum.OnSurface,
+        )
+        Text(
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 9.sp,
+            color = Spectrum.OnSurfaceDim,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun ChLegendDot(color: Color, label: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 2.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(color)
+                .size(8.dp)
+                .background(color, RoundedCornerShape(1.dp)),
         )
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 9.sp,
+            color = Spectrum.OnSurfaceDim,
+            letterSpacing = 0.10.em,
         )
     }
 }
