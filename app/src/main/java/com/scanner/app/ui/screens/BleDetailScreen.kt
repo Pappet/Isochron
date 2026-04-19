@@ -1,696 +1,605 @@
 package com.scanner.app.ui.screens
 
-import android.Manifest
-import android.os.Build
-import androidx.compose.animation.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import kotlinx.coroutines.launch
-import com.scanner.app.util.*
+import com.scanner.app.ui.components.HairlineHorizontal
+import com.scanner.app.ui.theme.InterFamily
+import com.scanner.app.ui.theme.JetBrainsMonoFamily
+import com.scanner.app.ui.theme.Spectrum
+import com.scanner.app.util.BleUuidDatabase
+import com.scanner.app.util.CharacteristicProperty
+import com.scanner.app.util.ConnectionState
+import com.scanner.app.util.GattCharacteristicInfo
+import com.scanner.app.util.GattExplorerState
+import com.scanner.app.util.GattServiceInfo
 
 /**
- * Advanced BLE exploration screen for discovering GATT services and characteristics.
- * Allows connecting to specific devices, browsing their service tree, and persisting
- * the discovered GATT structure to the device inventory.
- */
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
-@Composable
-fun BleDetailScreen() {
-    val context = LocalContext.current
-    val btScanner = remember { BluetoothScanner(context) }
-    val gattExplorer = remember { GattExplorer(context) }
-    val repository = remember { com.scanner.app.data.repository.DeviceRepository(context) }
-
-    var scannedDevices by remember { mutableStateOf<List<com.scanner.app.data.BluetoothDevice>>(emptyList()) }
-    var isScanning by remember { mutableStateOf(false) }
-    var selectedAddress by remember { mutableStateOf<String?>(null) }
-
-    val gattState by gattExplorer.state.collectAsState()
-    val scope = rememberCoroutineScope()
-
-    val permissions = buildList {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            add(Manifest.permission.BLUETOOTH_SCAN)
-            add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-    val permissionState = rememberMultiplePermissionsState(permissions)
-
-    LaunchedEffect(gattState.connectionState, selectedAddress) {
-        if (gattState.connectionState == ConnectionState.READY && selectedAddress != null) {
-            val json = buildGattJson(gattState)
-            repository.persistGattData(selectedAddress!!, json)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            btScanner.cleanup()
-            gattExplorer.cleanup()
-        }
-    }
-
-    // If connected to a device, show GATT tree
-    if (selectedAddress != null && gattState.connectionState != ConnectionState.DISCONNECTED) {
-        GattDetailView(
-            state = gattState,
-            onDisconnect = {
-                gattExplorer.disconnect()
-                selectedAddress = null
-            }
-        )
-        return
-    }
-
-    // Otherwise show BLE scanner with connect buttons
-    Column(modifier = Modifier.fillMaxSize()) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "BLE Explorer",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = if (isScanning) "Scanne BLE-Geräte..."
-                    else "${scannedDevices.size} BLE-Geräte gefunden",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            FilledTonalButton(
-                onClick = {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    } else {
-                        try {
-                            isScanning = true
-                            btScanner.startScan(
-                                durationMs = 8000L,
-                                onProgress = { try { scannedDevices = it } catch (_: Exception) {} },
-                                onComplete = {
-                                    try {
-                                        scannedDevices = it
-                                        isScanning = false
-                                        scope.launch { repository.persistBluetoothScan(it, 8000L) }
-                                    } catch (_: Exception) {}
-                                }
-                            )
-                        } catch (e: Exception) {
-                            android.util.Log.e("BleDetail", "Error starting scan", e)
-                            isScanning = false
-                        }
-                    }
-                },
-                enabled = !isScanning
-            ) {
-                if (isScanning) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Default.Bluetooth, contentDescription = null)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isScanning) "Scanne..." else "BLE Scan")
-            }
-        }
-
-        if (scannedDevices.isEmpty() && !isScanning) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Outlined.Bluetooth,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Starte einen BLE-Scan um\nGATT-Dienste zu erkunden.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(scannedDevices, key = { it.address }) { device ->
-                    BleConnectCard(
-                        device = device,
-                        onConnect = {
-                            selectedAddress = device.address
-                            gattExplorer.connect(device.address)
-                        }
-                    )
-                }
-                item { Spacer(modifier = Modifier.height(80.dp)) }
-            }
-        }
-    }
-}
-
-
-
-/**
- * Renders a BLE device entry with RSSI and a connection trigger.
- */
-@Composable
-fun BleConnectCard(
-    device: com.scanner.app.data.BluetoothDevice,
-    onConnect: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-            ) {
-                Icon(
-                    Icons.Outlined.Bluetooth,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = device.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${device.address} · ${device.type.displayName()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            device.rssi?.let { rssi ->
-                Text(
-                    text = "$rssi dBm",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = SignalHelper.signalColor(SignalHelper.signalFraction(rssi)),
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
-
-            FilledTonalButton(
-                onClick = onConnect,
-                modifier = Modifier.height(32.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp)
-            ) {
-                Text("Verbinden", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
-
-
-
-/**
- * Visualization of the GATT service tree for a connected device.
- * Displays connection status, reading progress, and discovered services.
+ * Spectrum-styled GATT explorer. Matches AGatt handoff:
+ * header with LINK indicator, stats strip, accordion service list,
+ * bottom sheet on characteristic tap.
  */
 @Composable
 fun GattDetailView(
     state: GattExplorerState,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Connection header
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                ) {
-                    Icon(
-                        Icons.Outlined.BluetoothConnected,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+    var openSvc by remember { mutableStateOf<String?>(null) }
+    var selChar by remember { mutableStateOf<GattCharacteristicInfo?>(null) }
 
-                Spacer(modifier = Modifier.width(12.dp))
+    // Auto-open first service once discovery completes
+    if (openSvc == null && state.services.isNotEmpty()) {
+        openSvc = state.services.first().uuid.toString()
+    }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = state.deviceName ?: state.deviceAddress,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val stateColor = when (state.connectionState) {
-                            ConnectionState.READY -> Color(0xFF4CAF50)
-                            ConnectionState.FAILED -> Color(0xFFF44336)
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(stateColor)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = state.connectionState.label,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = stateColor
-                        )
-                        state.rssi?.let { rssi ->
-                            Text(
-                                text = " · $rssi dBm",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+    Box(Modifier.fillMaxSize().background(Spectrum.Surface)) {
+        Column(Modifier.fillMaxSize()) {
+            GattHeader(state, onDisconnect)
 
-                IconButton(onClick = onDisconnect) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Trennen",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-
-            // Reading progress
-            if (state.isReadingCharacteristics && state.readTotal > 0) {
-                LinearProgressIndicator(
-                    progress = { state.readProgress.toFloat() / state.readTotal },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 8.dp)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                )
-            }
-        }
-
-        // Error
-        state.error?.let { error ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // Summary + Copy button
-        if (state.services.isNotEmpty()) {
-            val context = LocalContext.current
-            val clipboardManager = remember {
-                context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${state.services.size} Dienste · ${state.services.sumOf { it.characteristics.size }} Characteristics",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                FilledTonalButton(
-                    onClick = {
-                        val json = buildGattJson(state)
-                        val clip = android.content.ClipData.newPlainText("GATT Data", json)
-                        clipboardManager.setPrimaryClip(clip)
-                        android.widget.Toast.makeText(context, "GATT-Daten kopiert!", android.widget.Toast.LENGTH_SHORT).show()
+            when (state.connectionState) {
+                ConnectionState.CONNECTING,
+                ConnectionState.DISCOVERING,
+                ConnectionState.CONNECTED -> GattBusy(state.connectionState.label)
+                else -> GattServiceList(
+                    state = state,
+                    openSvc = openSvc,
+                    onToggleSvc = { uuid ->
+                        openSvc = if (openSvc == uuid) null else uuid
                     },
-                    modifier = Modifier.height(28.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp)
-                ) {
-                    Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Kopieren", style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
-
-        // Service tree
-        if (state.connectionState == ConnectionState.CONNECTING ||
-            state.connectionState == ConnectionState.DISCOVERING
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = state.connectionState.label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(state.services, key = { it.uuid.toString() }) { service ->
-                    ServiceCard(service)
-                }
-
-
-                item {
-                    var showRaw by remember { mutableStateOf(false) }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showRaw = !showRaw },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (showRaw) "STRUKTURIERTE DATEN ▼" else "STRUKTURIERTE DATEN ▶",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-
-                    if (showRaw) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        val json = remember(state.services) { buildGattJson(state) }
-
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = json,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                lineHeight = 14.sp,
-                                modifier = Modifier.padding(10.dp)
-                            )
-                        }
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(80.dp)) }
-            }
-        }
-    }
-}
-
-
-
-/**
- * Expandable card representing a single GATT service.
- */
-@Composable
-fun ServiceCard(service: GattServiceInfo) {
-    var expanded by remember { mutableStateOf(service.isStandard) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .clickable { expanded = !expanded },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Category icon
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                ) {
-                    Text(
-                        text = service.category.emoji,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = service.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = BleUuidDatabase.formatUuid(service.uuid),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Surface(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = "${service.characteristics.size}",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                Icon(
-                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    onSelectChar = { selChar = it },
                 )
             }
+        }
 
-            // Characteristics
-            if (expanded && service.characteristics.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+        selChar?.let { char ->
+            CharacteristicSheet(
+                char = char,
+                onClose = { selChar = null },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
 
-                service.characteristics.forEach { char ->
-                    CharacteristicRow(char)
+@Composable
+private fun GattHeader(state: GattExplorerState, onDisconnect: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Spectrum.Surface)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconSquareButton(
+                icon = Icons.Outlined.Close,
+                contentDescription = "Trennen",
+                onClick = onDisconnect,
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "BT / GATT",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    letterSpacing = 0.18.em,
+                )
+                val nameEmpty = state.deviceName.isNullOrBlank()
+                Text(
+                    if (nameEmpty) state.deviceAddress else state.deviceName!!,
+                    fontFamily = InterFamily,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = (-0.02).em,
+                    color = if (nameEmpty) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
+                    fontStyle = if (nameEmpty) FontStyle.Italic else FontStyle.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            LinkBadge(state.connectionState)
+        }
+
+        if (state.connectionState == ConnectionState.READY ||
+            state.connectionState == ConnectionState.READING
+        ) {
+            Row(
+                modifier = Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                StatPair(state.deviceAddress.ifBlank { "—" }, null)
+                StatPair(state.rssi?.toString() ?: "—", "dBm")
+                StatPair(state.services.size.toString(), "svc")
+                StatPair(state.services.sumOf { it.characteristics.size }.toString(), "chr")
+            }
+        }
+
+        if (state.isReadingCharacteristics && state.readTotal > 0) {
+            Spacer(Modifier.height(10.dp))
+            LinearProgressIndicator(
+                progress = { state.readProgress.toFloat() / state.readTotal },
+                modifier = Modifier.fillMaxWidth().height(2.dp),
+                color = Spectrum.Accent,
+                trackColor = Spectrum.GridLine,
+            )
+        }
+
+        state.error?.let { err ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "⚠ $err",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = Spectrum.Danger,
+                letterSpacing = 0.1.em,
+            )
+        }
+    }
+    HairlineHorizontal()
+}
+
+@Composable
+private fun StatPair(value: String, unit: String?) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            value,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = Spectrum.OnSurface,
+        )
+        if (unit != null) {
+            Spacer(Modifier.width(4.dp))
+            Text(
+                unit,
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = Spectrum.OnSurfaceDim,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LinkBadge(conn: ConnectionState) {
+    val linked = conn == ConnectionState.READY ||
+            conn == ConnectionState.READING ||
+            conn == ConnectionState.DISCOVERING
+    val color = if (linked) Spectrum.Accent else Spectrum.OnSurfaceDim
+    val label = when (conn) {
+        ConnectionState.READY, ConnectionState.READING -> "LINK"
+        ConnectionState.DISCOVERING -> "SCAN"
+        ConnectionState.CONNECTING -> "WAIT"
+        ConnectionState.FAILED -> "FAIL"
+        else -> "OFF"
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        BlinkingDot(color = color, blink = linked)
+        Text(
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = color,
+            letterSpacing = 0.14.em,
+        )
+    }
+}
+
+@Composable
+private fun BlinkingDot(color: Color, blink: Boolean) {
+    val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "gatt-blink")
+    val alpha by if (blink) {
+        tr.animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing)),
+            label = "gatt-blink-a",
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+    Box(
+        Modifier
+            .size(7.dp)
+            .clip(CircleShape)
+            .background(color.copy(alpha = alpha)),
+    )
+}
+
+@Composable
+private fun GattBusy(label: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            PulseRing()
+            Spacer(Modifier.height(14.dp))
+            Text(
+                label.uppercase(),
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = Spectrum.OnSurfaceDim,
+                letterSpacing = 0.2.em,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PulseRing() {
+    val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "gatt-pulse")
+    val scale by tr.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)),
+        label = "pulse-s",
+    )
+    val a by tr.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0.1f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)),
+        label = "pulse-a",
+    )
+    Box(
+        Modifier
+            .size((48f * scale).dp)
+            .clip(CircleShape)
+            .border(1.dp, Spectrum.Accent.copy(alpha = a), CircleShape),
+    )
+}
+
+@Composable
+private fun GattServiceList(
+    state: GattExplorerState,
+    openSvc: String?,
+    onToggleSvc: (String) -> Unit,
+    onSelectChar: (GattCharacteristicInfo) -> Unit,
+) {
+    if (state.services.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                "NO SERVICES",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = Spectrum.OnSurfaceDim,
+                letterSpacing = 0.2.em,
+            )
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(state.services, key = { it.uuid.toString() }) { svc ->
+            ServiceAccordion(
+                svc = svc,
+                open = openSvc == svc.uuid.toString(),
+                onToggle = { onToggleSvc(svc.uuid.toString()) },
+                onSelectChar = onSelectChar,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ServiceAccordion(
+    svc: GattServiceInfo,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onSelectChar: (GattCharacteristicInfo) -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                BleUuidDatabase.formatUuid(svc.uuid),
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = Spectrum.Accent,
+                modifier = Modifier.width(58.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    svc.name,
+                    fontFamily = InterFamily,
+                    fontSize = 13.sp,
+                    color = Spectrum.OnSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${svc.category.label.uppercase()} · ${svc.characteristics.size} CHAR",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    letterSpacing = 0.12.em,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            Icon(
+                Icons.Outlined.ExpandMore,
+                contentDescription = if (open) "Zuklappen" else "Aufklappen",
+                tint = Spectrum.OnSurfaceDim,
+                modifier = Modifier
+                    .size(14.dp)
+                    .rotate(if (open) 180f else 0f),
+            )
+        }
+        HairlineHorizontal()
+        if (open) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Spectrum.SurfaceRaised),
+            ) {
+                svc.characteristics.forEach { c ->
+                    CharacteristicRow(c, onClick = { onSelectChar(c) })
+                    HairlineHorizontal()
                 }
             }
         }
     }
 }
 
-
-
-/**
- * Row representing a GATT characteristic with its properties and current value.
- */
 @Composable
-fun CharacteristicRow(char: GattCharacteristicInfo) {
-    var showDetails by remember { mutableStateOf(false) }
-
-    Column(
+private fun CharacteristicRow(char: GattCharacteristicInfo, onClick: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { showDetails = !showDetails }
-            .padding(vertical = 6.dp)
+            .clickable(onClick = onClick)
+            .padding(start = 34.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Indent indicator
+        Text(
+            BleUuidDatabase.formatUuid(char.uuid),
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Spectrum.OnSurfaceDim,
+            modifier = Modifier.width(72.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                char.name,
+                fontFamily = InterFamily,
+                fontSize = 12.sp,
+                color = Spectrum.OnSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val preview = char.stringValue?.take(24)
+                ?: char.value?.let { bytes ->
+                    bytes.take(6).joinToString(" ") { "%02X".format(it) } +
+                            if (bytes.size > 6) "…" else ""
+                }
+            if (!preview.isNullOrBlank()) {
+                Text(
+                    preview,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 1.dp),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            char.properties.take(3).forEach { prop -> PropertyChip(prop.short()) }
+        }
+    }
+}
+
+private fun CharacteristicProperty.short(): String = when (this) {
+    CharacteristicProperty.READ -> "R"
+    CharacteristicProperty.WRITE -> "W"
+    CharacteristicProperty.WRITE_NO_RESPONSE -> "WN"
+    CharacteristicProperty.NOTIFY -> "N"
+    CharacteristicProperty.INDICATE -> "I"
+    CharacteristicProperty.BROADCAST -> "B"
+    CharacteristicProperty.SIGNED_WRITE -> "S"
+    CharacteristicProperty.EXTENDED_PROPS -> "X"
+}
+
+@Composable
+private fun PropertyChip(label: String) {
+    Box(
+        modifier = Modifier
+            .border(1.dp, Spectrum.GridLine, RoundedCornerShape(2.dp))
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+    ) {
+        Text(
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 9.sp,
+            color = Spectrum.OnSurfaceDim,
+            letterSpacing = 0.05.em,
+        )
+    }
+}
+
+@Composable
+private fun CharacteristicSheet(
+    char: GattCharacteristicInfo,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Spectrum.Surface)
+            .border(width = 1.dp, color = Spectrum.Accent, shape = RoundedCornerShape(0.dp))
+            .padding(16.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "CHARACTERISTIC",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.Accent,
+                letterSpacing = 0.2.em,
+                modifier = Modifier.weight(1f),
+            )
             Box(
                 modifier = Modifier
-                    .width(3.dp)
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-            )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = char.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    .size(24.dp)
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "Schließen",
+                    tint = Spectrum.OnSurfaceDim,
+                    modifier = Modifier.size(14.dp),
                 )
-
-                // Properties as chips
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    char.properties.forEach { prop ->
-                        val color = when (prop) {
-                            CharacteristicProperty.READ -> Color(0xFF4CAF50)
-                            CharacteristicProperty.WRITE,
-                            CharacteristicProperty.WRITE_NO_RESPONSE -> Color(0xFF2196F3)
-                            CharacteristicProperty.NOTIFY,
-                            CharacteristicProperty.INDICATE -> Color(0xFFFF9800)
-                            else -> MaterialTheme.colorScheme.outline
-                        }
-                        Surface(
-                            color = color.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(3.dp)
-                        ) {
-                            Text(
-                                text = prop.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = color,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                fontSize = 9.sp
-                            )
-                        }
-                    }
-                }
             }
+        }
+        Text(
+            char.name,
+            fontFamily = InterFamily,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.01).em,
+            color = Spectrum.OnSurface,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Text(
+            "UUID ${BleUuidDatabase.formatUuid(char.uuid)}",
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = Spectrum.OnSurfaceDim,
+            modifier = Modifier.padding(top = 2.dp),
+        )
 
-            // Value
-            char.stringValue?.let { value ->
+        val valueText = char.stringValue
+            ?: char.value?.joinToString(" ") { "%02X".format(it) }
+            ?: "— no value —"
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .background(Spectrum.SurfaceRaised, RoundedCornerShape(4.dp))
+                .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    text = value.take(20),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1
+                    valueText,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 12.sp,
+                    color = Spectrum.Accent,
+                    lineHeight = 16.sp,
                 )
             }
         }
 
-        // Expanded details
-        if (showDetails) {
-            Column(modifier = Modifier.padding(start = 13.dp, top = 4.dp)) {
-                Text(
-                    text = "UUID: ${char.uuid}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                char.value?.let { bytes ->
+        if (char.descriptors.isNotEmpty()) {
+            Text(
+                "DESCRIPTORS · ${char.descriptors.size}",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.OnSurfaceDim,
+                letterSpacing = 0.2.em,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            char.descriptors.forEach { d ->
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text(
-                        text = "Hex: ${bytes.joinToString(" ") { "%02X".format(it) }}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        BleUuidDatabase.formatUuid(d.uuid),
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 10.sp,
+                        color = Spectrum.OnSurfaceDim,
                     )
                     Text(
-                        text = "Bytes: ${bytes.size}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        d.name,
+                        fontFamily = InterFamily,
+                        fontSize = 11.sp,
+                        color = Spectrum.OnSurface,
                     )
-                }
-
-                if (char.descriptors.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    char.descriptors.forEach { desc ->
-                        Text(
-                            text = "↳ ${desc.name}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
                 }
             }
         }
     }
 }
 
-
+@Composable
+private fun IconSquareButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = Spectrum.OnSurface,
+            modifier = Modifier.size(14.dp),
+        )
+    }
+}
 
 /**
  * Converts the current GATT explorer state into a structured JSON string.
