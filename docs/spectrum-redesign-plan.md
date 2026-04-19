@@ -26,7 +26,7 @@ full JSX tree.
 | **EXPORT DIALOG** | **done** — `ui/components/ExportDialog.kt` |
 | **BLUETOOTH** screen | **done** — `ui/screens/BluetoothScreen.kt` |
 | **BLE GATT** detail | **done** — `ui/screens/BleDetailScreen.kt` (rewritten) |
-| ONBOARDING | **not started** (doesn't exist yet) |
+| ONBOARDING | **done** — `ui/screens/OnboardingScreen.kt` |
 
 The remaining work is per-screen porting. The theme + primitives layer is
 stable; do not modify it unless you find a concrete shortcoming.

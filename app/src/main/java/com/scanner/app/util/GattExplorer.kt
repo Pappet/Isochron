@@ -159,10 +159,27 @@ class GattExplorer(private val context: Context) {
 
             val device = adapter.getRemoteDevice(address)
 
+            val devName = try {
+                var n: String? = null
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    n = device.alias
+                }
+                if (n.isNullOrBlank()) {
+                    n = device.name
+                }
+                n
+            } catch (e: SecurityException) {
+                android.util.Log.e("GattExplorer", "SecurityException: Permission denied reading device name/alias", e)
+                null
+            } catch (e: Exception) {
+                android.util.Log.w("GattExplorer", "Error reading device name/alias", e)
+                null
+            }
+
             _state.value = GattExplorerState(
                 connectionState = ConnectionState.CONNECTING,
                 deviceAddress = address,
-                deviceName = try { device.name } catch (_: Exception) { null }
+                deviceName = devName
             )
 
             bluetoothGatt = device.connectGatt(context, false, gattCallback, android.bluetooth.BluetoothDevice.TRANSPORT_LE)

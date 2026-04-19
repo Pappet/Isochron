@@ -162,7 +162,7 @@ class BluetoothScanner(private val context: Context) {
                 try {
                     val address = device.address ?: return@mapNotNull null
                     BluetoothDevice(
-                        name = device.name ?: "(Unbekannt)",
+                        name = device.getAliasOrName(TAG) ?: "(Unbekannt)",
                         address = address,
                         rssi = null,
                         type = mapDeviceType(device.type),
@@ -259,7 +259,7 @@ class BluetoothScanner(private val context: Context) {
 
                             upsertDevice(
                                 address = address,
-                                name = try { device.name } catch (_: Exception) { null },
+                                name = device.getAliasOrName(TAG),
                                 rssi = rssi.takeIf { it != Short.MIN_VALUE.toInt() },
                                 type = try { mapDeviceType(device.type) } catch (_: Exception) { DeviceType.UNKNOWN },
                                 bondState = try { mapBondState(device.bondState) } catch (_: Exception) { BondState.NOT_BONDED },
@@ -277,7 +277,7 @@ class BluetoothScanner(private val context: Context) {
                                     ?: return
 
                             val address = device.address ?: return
-                            val newName = try { device.name } catch (_: Exception) { null }
+                            val newName = device.getAliasOrName(TAG)
                             if (newName != null) {
                                 val existing = discoveredDevices[address] ?: return
                                 discoveredDevices[address] = existing.copy(name = newName)
@@ -343,10 +343,12 @@ class BluetoothScanner(private val context: Context) {
                         scanRecord?.txPowerLevel?.takeIf { it != Int.MIN_VALUE }
                     } catch (_: Exception) { null }
 
+                    val resolvedName = try { scanRecord?.deviceName } catch (_: Exception) { null }
+                        ?: device.getAliasOrName(TAG)
+
                     upsertDevice(
                         address = address,
-                        name = try { scanRecord?.deviceName } catch (_: Exception) { null }
-                            ?: try { device.name } catch (_: Exception) { null },
+                        name = resolvedName,
                         rssi = result.rssi,
                         type = DeviceType.BLE,
                         bondState = try { mapBondState(device.bondState) } catch (_: Exception) { BondState.NOT_BONDED },
@@ -424,6 +426,26 @@ class BluetoothScanner(private val context: Context) {
         0x0800 -> "Spielzeug"
         0x0900 -> "Gesundheit"
         else -> null
+    }
+
+    @SuppressLint("NewApi")
+    private fun android.bluetooth.BluetoothDevice.getAliasOrName(tag: String): String? {
+        return try {
+            var n: String? = null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                n = this.alias
+            }
+            if (n.isNullOrBlank()) {
+                n = this.name
+            }
+            n
+        } catch (e: SecurityException) {
+            Log.e(tag, "SecurityException: Permission denied reading device name/alias", e)
+            null
+        } catch (e: Exception) {
+            Log.w(tag, "Error reading device name/alias", e)
+            null
+        }
     }
 
     /**

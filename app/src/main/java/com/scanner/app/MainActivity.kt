@@ -26,6 +26,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.scanner.app.ui.components.SpectrumBottomNav
 import com.scanner.app.ui.components.SpectrumTab
@@ -72,6 +75,18 @@ private val SpectrumTabs = listOf(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ScannerApp() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("scanner_prefs", android.content.Context.MODE_PRIVATE) }
+    var onboardingComplete by remember { mutableStateOf(prefs.getBoolean("onboarding_complete", false)) }
+
+    if (!onboardingComplete) {
+        com.scanner.app.ui.screens.OnboardingScreen(onDone = {
+            prefs.edit().putBoolean("onboarding_complete", true).apply()
+            onboardingComplete = true
+        })
+        return
+    }
+
     val pagerState = rememberPagerState(pageCount = { SpectrumTabs.size })
     val scope = rememberCoroutineScope()
     val selectedKey = remember(pagerState.currentPage) {
