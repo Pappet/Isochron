@@ -3,44 +3,51 @@ package com.scanner.app.ui.screens
 import android.Manifest
 import android.os.Build
 import android.util.Log
-import androidx.compose.animation.*
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.outlined.OpenInBrowser
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.scanner.app.data.WifiNetwork
 import com.scanner.app.data.BluetoothDevice
+import com.scanner.app.data.WifiNetwork
+import com.scanner.app.ui.components.*
+import com.scanner.app.ui.theme.JetBrainsMonoFamily
+import com.scanner.app.ui.theme.Spectrum
 import com.scanner.app.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Screen for running comprehensive security audits.
- * Orchestrates a multi-phase scan (WiFi, Bluetooth, Gateway Ports) and generates
- * a prioritized list of security findings with recommendations.
- */
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun SecurityAuditScreen() {
     val context = LocalContext.current
@@ -83,31 +90,23 @@ fun SecurityAuditScreen() {
             permissionState.launchMultiplePermissionRequest()
             return
         }
-
         isAuditing = true
         openPorts = emptyList()
-
         scope.launch {
             try {
-                // Phase 1: WiFi Scan
                 auditPhase = "WLAN scannen..."
                 wifiNetworks = try {
                     val deferred = kotlinx.coroutines.CompletableDeferred<List<WifiNetwork>>()
                     wifiScanner.startScan { results -> deferred.complete(results) }
                     kotlinx.coroutines.withTimeoutOrNull(10_000L) { deferred.await() } ?: emptyList()
-                } catch (e: Exception) {
-                    Log.e("SecurityAudit", "WiFi scan error", e)
-                    emptyList()
-                }
+                } catch (e: Exception) { Log.e("SecurityAudit", "WiFi scan error", e); emptyList() }
 
-                // Phase 2: Bluetooth Scan
                 auditPhase = "Bluetooth scannen..."
                 btDevices = try {
                     val deferred = kotlinx.coroutines.CompletableDeferred<List<BluetoothDevice>>()
                     btScanner.startScan(
                         durationMs = 6000L,
                         onProgress = { devices ->
-                            // Ensure state update on main thread
                             scope.launch(Dispatchers.Main.immediate) {
                                 try { btDevices = devices } catch (_: Exception) {}
                             }
@@ -115,52 +114,33 @@ fun SecurityAuditScreen() {
                         onComplete = { results -> deferred.complete(results) }
                     )
                     kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() } ?: emptyList()
-                } catch (e: Exception) {
-                    Log.e("SecurityAudit", "Bluetooth scan error", e)
-                    emptyList()
-                }
+                } catch (e: Exception) { Log.e("SecurityAudit", "BT scan error", e); emptyList() }
 
-                // Phase 3: Port scan on gateway
                 try {
-                    val networkInfo = pingUtil.getNetworkInfo()
-                    val gateway = networkInfo.gatewayIp
-
+                    val gateway = pingUtil.getNetworkInfo().gatewayIp
                     if (gateway != null) {
                         auditPhase = "Port-Scan: $gateway..."
                         val scanResults = portScanner.scan(
                             ip = gateway,
                             ports = WellKnownPorts.QUICK_20,
                             grabBanners = true,
-                            onProgress = { progress ->
-                                // Ensure state update on main thread
-                                scope.launch(Dispatchers.Main.immediate) {
-                                    portScanProgress = progress
-                                }
+                            onProgress = { p ->
+                                scope.launch(Dispatchers.Main.immediate) { portScanProgress = p }
                             }
                         )
-                        // Update state on main thread
-                        withContext(Dispatchers.Main) {
-                            openPorts = scanResults
-                        }
+                        withContext(Dispatchers.Main) { openPorts = scanResults }
                     }
-                } catch (e: Exception) {
-                    Log.e("SecurityAudit", "Port scan error", e)
-                }
+                } catch (e: Exception) { Log.e("SecurityAudit", "Port scan error", e) }
 
-                // Phase 4: Generate report
                 auditPhase = "Bericht erstellen..."
-                val generatedReport = try {
+                report = try {
                     SecurityAuditor.audit(
                         wifiNetworks = wifiNetworks,
                         btDevices = btDevices,
                         openPorts = openPorts,
                         connectedSsid = wifiScanner.getConnectedSsid()
                     )
-                } catch (e: Exception) {
-                    Log.e("SecurityAudit", "Report generation error", e)
-                    null
-                }
-                report = generatedReport
+                } catch (e: Exception) { Log.e("SecurityAudit", "Report error", e); null }
             } catch (e: Exception) {
                 Log.e("SecurityAudit", "Audit error", e)
             } finally {
@@ -171,469 +151,428 @@ fun SecurityAuditScreen() {
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
-    ) {
+    val r = report
+    val headerStats = if (r != null) listOf(
+        HeaderStat("${r.findings.size}", "findings"),
+        HeaderStat("${r.criticalCount + r.highCount}", "actionable"),
+    ) else emptyList()
 
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Spectrum.Surface),
+        contentPadding = PaddingValues(bottom = 100.dp),
+    ) {
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Security Audit",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isAuditing) auditPhase else
-                            report?.let { "${it.findings.size} Findings · Score ${it.overallScore}/100" }
-                                ?: "WLAN · Bluetooth · Gateway-Ports",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                FilledTonalButton(
-                    onClick = { runAudit() },
-                    enabled = !isAuditing
-                ) {
-                    if (isAuditing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Outlined.Shield, contentDescription = null)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isAuditing) auditPhase.take(20) else "Audit starten")
-                }
-            }
+            SpectrumHeader(
+                kicker = "AUDIT",
+                subtitle = "Security",
+                scanning = isAuditing,
+                onScan = ::runAudit,
+                stats = headerStats,
+            )
         }
 
-
+        // Progress bar while auditing
         if (isAuditing) {
             item {
-                portScanProgress?.let { p ->
-                    LinearProgressIndicator(
-                        progress = { p.scanned.toFloat() / p.total.coerceAtLeast(1) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                    )
-                } ?: LinearProgressIndicator(
+                val progress = portScanProgress
+                val frac = if (progress != null) progress.scanned.toFloat() / progress.total.coerceAtLeast(1) else null
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                        .height(2.dp)
+                        .background(Spectrum.GridLine),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(frac ?: 1f)
+                            .background(Spectrum.Accent),
+                    )
+                }
+                if (auditPhase.isNotEmpty()) {
+                    Text(
+                        auditPhase,
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 10.sp,
+                        color = Spectrum.OnSurfaceDim,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
+                    )
+                }
             }
         }
 
-
-        report?.let { r ->
+        // Empty state
+        if (r == null && !isAuditing) {
             item {
-                ScoreCard(report = r, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "— —",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 40.sp,
+                            color = Spectrum.OnSurfaceFaint,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "AUDIT STARTEN",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 11.sp,
+                            letterSpacing = 0.15.em,
+                            color = Spectrum.OnSurfaceDim,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Prüft WLAN · Bluetooth · Gateway-Ports",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 10.sp,
+                            color = Spectrum.OnSurfaceFaint,
+                        )
+                    }
+                }
             }
+        }
 
-            // Severity summary badges
+        if (r != null) {
+            // Grade donut + descriptor
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        .padding(horizontal = 22.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    if (r.criticalCount > 0) SeverityBadge("${r.criticalCount} Kritisch", Color(0xFFD32F2F))
-                    if (r.highCount > 0) SeverityBadge("${r.highCount} Hoch", Color(0xFFE64A19))
-                    if (r.mediumCount > 0) SeverityBadge("${r.mediumCount} Mittel", Color(0xFFF57C00))
-                    if (r.lowCount > 0) SeverityBadge("${r.lowCount} Niedrig", Color(0xFFFBC02D))
-                    if (r.infoCount > 0) SeverityBadge("${r.infoCount} Info", Color(0xFF42A5F5))
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // Hint about per-device port scanning
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Outlined.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    AuditDonut(score = r.overallScore, grade = r.grade)
+                    Column {
+                        SpectrumKicker("GRADE")
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "Port-Scans einzelner Geräte findest du im LAN-Tab. GPS-Geotagging im WLAN-Tab.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            gradeDescriptor(r.overallScore),
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 22.sp,
+                            color = Spectrum.OnSurface,
+                            letterSpacing = (-0.02).em,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            buildCountSummary(r),
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 11.sp,
+                            color = Spectrum.OnSurfaceDim,
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                HairlineHorizontal()
             }
 
-
+            // Findings
             if (r.findings.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "FINDINGS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    SpectrumKicker(
+                        "FINDINGS · ${r.findings.size}",
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     )
                 }
-
                 items(r.findings, key = { "${it.target}-${it.title}" }) { finding ->
-                    FindingCard(
-                        finding = finding,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
-                    )
+                    SecFindingRow(finding = finding)
+                    HairlineHorizontal()
                 }
             }
 
-
+            // Gateway ports
             if (openPorts.isNotEmpty()) {
                 item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "GATEWAY-PORTS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    SpectrumKicker(
+                        "GATEWAY-PORTS · ${openPorts.size}",
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     )
                 }
                 items(openPorts, key = { "${it.ip}:${it.port}" }) { port ->
-                    PortCard(port, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+                    SecPortRow(port = port)
+                    HairlineHorizontal()
                 }
             }
-        }
 
-
-        if (report == null && !isAuditing) {
+            // Hint
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Outlined.Shield,
-                            contentDescription = null,
-                            modifier = Modifier.size(56.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Tippe auf \"Audit starten\" für eine\nNetzwerk-Sicherheitsanalyse.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Prüft WLAN-Verschlüsselung, WPS, Bluetooth-Sichtbarkeit\nund offene Ports am Gateway.",
-                            style = MaterialTheme.typography.bodySmall,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                }
+                Text(
+                    "Port-Scans einzelner Geräte findest du im LAN-Tab.",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceFaint,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                )
             }
         }
     }
 }
 
-
-
-/**
- * UI component for displaying the overall security score and grade.
- */
 @Composable
-fun ScoreCard(report: SecurityAuditReport, modifier: Modifier = Modifier) {
-    val scoreColor = when {
-        report.overallScore >= 90 -> Color(0xFF4CAF50)
-        report.overallScore >= 75 -> Color(0xFF8BC34A)
-        report.overallScore >= 60 -> Color(0xFFFF9800)
-        report.overallScore >= 40 -> Color(0xFFFF5722)
-        else -> Color(0xFFF44336)
-    }
+private fun AuditDonut(score: Int, grade: String) {
+    val gradeColor = gradeColor(score)
+    val gridColor = Spectrum.GridLine
+    val surfaceColor = Spectrum.Surface
+    val density = LocalDensity.current
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = scoreColor.copy(alpha = 0.08f)),
-        shape = RoundedCornerShape(16.dp)
+    Canvas(modifier = Modifier.size(96.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val outerR = size.width / 2f
+        val strokeW = with(density) { 8.dp.toPx() }
+        val arcSize = Size(outerR * 2 - strokeW, outerR * 2 - strokeW)
+        val arcOffset = Offset(strokeW / 2f, strokeW / 2f)
+        val sweepAngle = (score / 100f) * 360f
+
+        // Background ring
+        drawArc(
+            color = gridColor,
+            startAngle = -90f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = arcOffset,
+            size = arcSize,
+            style = Stroke(width = strokeW, cap = StrokeCap.Butt),
+        )
+        // Grade arc
+        drawArc(
+            color = gradeColor,
+            startAngle = -90f,
+            sweepAngle = sweepAngle,
+            useCenter = false,
+            topLeft = arcOffset,
+            size = arcSize,
+            style = Stroke(width = strokeW, cap = StrokeCap.Butt),
+        )
+        // Inner fill
+        drawCircle(
+            color = surfaceColor,
+            radius = outerR - strokeW,
+            center = Offset(cx, cy),
+        )
+        // Grade letter
+        val textPaint = android.graphics.Paint().apply {
+            color = gradeColor.toArgb()
+            textSize = with(density) { 40.sp.toPx() }
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        drawContext.canvas.nativeCanvas.drawText(
+            grade,
+            cx,
+            cy + textPaint.textSize * 0.35f,
+            textPaint,
+        )
+    }
+}
+
+@Composable
+private fun SecFindingRow(finding: SecurityFinding) {
+    var expanded by remember { mutableStateOf(false) }
+    val color = severityColor(finding.severity)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Row(
-            modifier = Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
+            // Severity badge
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(scoreColor.copy(alpha = 0.15f))
+                    .width(54.dp)
+                    .border(1.dp, color, RoundedCornerShape(2.dp))
+                    .padding(vertical = 3.dp),
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = report.grade,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = scoreColor
-                    )
-                    Text(
-                        text = "${report.overallScore}/100",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = scoreColor
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(20.dp))
-            Column {
                 Text(
-                    text = when {
-                        report.overallScore >= 90 -> "Sehr gut geschützt"
-                        report.overallScore >= 75 -> "Gut geschützt"
-                        report.overallScore >= 60 -> "Verbesserungsbedarf"
-                        report.overallScore >= 40 -> "Mehrere Risiken"
-                        else -> "Kritische Risiken"
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = scoreColor
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${report.auditedNetworks} Netzwerke · ${report.auditedDevices} Geräte",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "${report.findings.size} Findings",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    finding.severity.label.uppercase(),
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = color,
+                    letterSpacing = 0.12.em,
                 )
             }
-        }
-    }
-}
-
-
-
-/**
- * Expandable card displaying a specific security finding, its description, and a fix recommendation.
- */
-@Composable
-fun FindingCard(finding: SecurityFinding, modifier: Modifier = Modifier) {
-    var expanded by remember { mutableStateOf(false) }
-    val severityColor = Color(finding.severity.color)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .clickable { expanded = !expanded },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(10.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(severityColor)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = finding.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = severityColor.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(3.dp)
-                        ) {
-                            Text(
-                                text = finding.severity.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = severityColor,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                fontSize = 9.sp
-                            )
-                        }
-                    }
-                    Text(
-                        text = "${finding.category.label} · ${finding.target}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            if (expanded) {
-                Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = finding.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
-                        Icon(
-                            Icons.Outlined.Lightbulb,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = finding.recommendation,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-
-/**
- * Renders an open port finding with risk assessment and service details.
- */
-@Composable
-fun PortCard(port: PortScanResult, modifier: Modifier = Modifier) {
-    val risk = WellKnownPorts.riskLevel(port.port)
-    val riskColor = when (risk) {
-        PortRisk.CRITICAL -> Color(0xFFD32F2F)
-        PortRisk.HIGH -> Color(0xFFE64A19)
-        PortRisk.MEDIUM -> Color(0xFFF57C00)
-        PortRisk.LOW -> Color(0xFFFBC02D)
-        PortRisk.INFO -> Color(0xFF42A5F5)
-    }
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        ),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(riskColor))
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "${port.port}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.width(50.dp)
-            )
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = port.serviceName, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                port.banner?.let {
+                Text(
+                    finding.title,
+                    fontSize = 14.sp,
+                    color = Spectrum.OnSurface,
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    finding.target,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                if (expanded) {
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text = it.take(60),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        finding.description,
+                        fontSize = 12.sp,
+                        color = Spectrum.OnSurfaceDim,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .border(1.dp, Spectrum.AccentDim, RoundedCornerShape(2.dp))
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            "↳",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 11.sp,
+                            color = Spectrum.Accent,
+                        )
+                        Text(
+                            finding.recommendation,
+                            fontSize = 12.sp,
+                            color = Spectrum.Accent,
+                        )
+                    }
+                } else {
+                    Text(
+                        finding.description,
+                        fontSize = 12.sp,
+                        color = Spectrum.OnSurfaceDim,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
-            port.latencyMs?.let {
+        }
+    }
+}
+
+@Composable
+private fun SecPortRow(port: PortScanResult) {
+    val risk = WellKnownPorts.riskLevel(port.port)
+    val color = when (risk) {
+        PortRisk.CRITICAL -> Spectrum.Danger
+        PortRisk.HIGH -> Spectrum.SeverityHigh
+        PortRisk.MEDIUM -> Spectrum.Warning
+        PortRisk.LOW -> Spectrum.SeverityLow
+        PortRisk.INFO -> Spectrum.OnSurfaceDim
+    }
+    val context = LocalContext.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // Port number as badge
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .width(54.dp)
+                .border(1.dp, color, RoundedCornerShape(2.dp))
+                .padding(vertical = 3.dp),
+        ) {
+            Text(
+                "${port.port}",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = color,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                port.serviceName,
+                fontSize = 13.sp,
+                color = Spectrum.OnSurface,
+                fontWeight = FontWeight.Medium,
+            )
+            port.banner?.let { b ->
                 Text(
-                    text = "${"%.0f".format(it)}ms",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    b.take(60),
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            // Browser button for detected HTTP
-            WellKnownPorts.browseUrl(port)?.let { url ->
-                Spacer(modifier = Modifier.width(4.dp))
-                val context = LocalContext.current
-                IconButton(
-                    onClick = {
-                        try {
-                            val intent = android.content.Intent(
+        }
+        port.latencyMs?.let {
+            Text(
+                "${"%.0f".format(it)}ms",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.OnSurfaceDim,
+            )
+        }
+        WellKnownPorts.browseUrl(port)?.let { url ->
+            IconButton(
+                onClick = {
+                    try {
+                        context.startActivity(
+                            android.content.Intent(
                                 android.content.Intent.ACTION_VIEW,
                                 android.net.Uri.parse(url)
                             )
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.OpenInBrowser,
-                        contentDescription = "Im Browser öffnen",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                        )
+                    } catch (_: Exception) {}
+                },
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.OpenInBrowser,
+                    contentDescription = "Im Browser öffnen",
+                    tint = Spectrum.Accent2,
+                    modifier = Modifier.size(16.dp),
+                )
             }
         }
     }
 }
 
-/**
- * Small badge indicating the severity level of a finding.
- */
-@Composable
-fun SeverityBadge(text: String, color: Color) {
-    Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
+private fun gradeColor(score: Int): Color = when {
+    score >= 75 -> Spectrum.Accent
+    score >= 60 -> Spectrum.Warning
+    else -> Spectrum.Danger
+}
+
+private fun gradeDescriptor(score: Int): String = when {
+    score >= 90 -> "Sehr gut geschützt"
+    score >= 75 -> "Gut geschützt"
+    score >= 60 -> "Moderate Risiken"
+    score >= 40 -> "Mehrere Risiken"
+    else -> "Kritische Risiken"
+}
+
+private fun buildCountSummary(r: SecurityAuditReport): String =
+    buildList {
+        if (r.criticalCount > 0) add("${r.criticalCount} kritisch")
+        if (r.highCount > 0) add("${r.highCount} hoch")
+        if (r.mediumCount > 0) add("${r.mediumCount} mittel")
+        if (r.lowCount > 0) add("${r.lowCount} niedrig")
+        if (r.infoCount > 0) add("${r.infoCount} info")
+    }.joinToString(" · ").ifEmpty { "Keine Findings" }
+
+private fun severityColor(severity: FindingSeverity): Color = when (severity) {
+    FindingSeverity.CRITICAL -> Spectrum.Danger
+    FindingSeverity.HIGH -> Spectrum.SeverityHigh
+    FindingSeverity.MEDIUM -> Spectrum.Warning
+    FindingSeverity.LOW -> Spectrum.SeverityLow
+    FindingSeverity.INFO -> Spectrum.OnSurfaceDim
 }
