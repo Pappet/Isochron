@@ -30,12 +30,15 @@ import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material.icons.outlined.Speaker
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +94,9 @@ fun LanScreen() {
     var portScanResults by remember { mutableStateOf<Map<String, List<PortScanResult>>>(emptyMap()) }
     var portScanningIp by remember { mutableStateOf<String?>(null) }
     var portScanProgress by remember { mutableStateOf<PortScanProgress?>(null) }
+
+    val favorites by repository.observeFavorites().collectAsState(initial = emptyList())
+    val favoriteAddresses = favorites.map { it.address }.toSet()
 
     val portScanner = remember { PortScanner() }
 
@@ -169,12 +175,16 @@ fun LanScreen() {
             devices.isEmpty() && hasScanned -> LanEmptyState(hasScanned = true)
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(devices, key = { it.ip }) { device ->
+                    val address = device.mac ?: "lan:${device.ip}"
+                    val isFavorite = address in favoriteAddresses
                     LanDeviceRow(
                         device = device,
                         portResults = portScanResults[device.ip] ?: emptyList(),
                         hasBeenPortScanned = device.ip in portScanResults,
                         isPortScanning = portScanningIp == device.ip,
                         portProgress = if (portScanningIp == device.ip) portScanProgress else null,
+                        isFavorite = isFavorite,
+                        onToggleFavorite = { scope.launch { repository.toggleFavoriteByAddress(address) } },
                         onPortScan = { ports -> startPortScan(device.ip, ports) },
                     )
                     HairlineHorizontal()
@@ -240,6 +250,8 @@ private fun LanDeviceRow(
     hasBeenPortScanned: Boolean,
     isPortScanning: Boolean,
     portProgress: PortScanProgress?,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onPortScan: (List<Int>) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -317,7 +329,16 @@ private fun LanDeviceRow(
             }
 
             // Port chips: first 4, then overflow count
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isFavorite) {
+                    Icon(
+                        imageVector = Icons.Outlined.Star,
+                        contentDescription = "Favorit",
+                        tint = Spectrum.Accent,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(2.dp))
+                }
                 displayPorts.take(4).forEach { port -> LanPortChip(port) }
                 if (displayPorts.size > 4) {
                     Text(
@@ -338,6 +359,8 @@ private fun LanDeviceRow(
                 hasBeenPortScanned = hasBeenPortScanned,
                 isPortScanning = isPortScanning,
                 portProgress = portProgress,
+                isFavorite = isFavorite,
+                onToggleFavorite = onToggleFavorite,
                 onPortScan = onPortScan,
             )
         }
@@ -372,6 +395,8 @@ private fun LanDeviceDetail(
     hasBeenPortScanned: Boolean,
     isPortScanning: Boolean,
     portProgress: PortScanProgress?,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onPortScan: (List<Int>) -> Unit,
 ) {
     Column(
@@ -390,6 +415,29 @@ private fun LanDeviceDetail(
         device.latencyMs?.let { LanDetailRow("Latenz", "${"%.1f".format(it)} ms") }
         if (device.isGateway) LanDetailRow("Rolle", "Gateway")
         if (device.isOwnDevice) LanDetailRow("Rolle", "Dieses Gerät")
+
+        Row(
+            Modifier.fillMaxWidth().padding(top = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Favorit", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+                    .clickable { onToggleFavorite() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Outlined.Star else Icons.Outlined.StarOutline,
+                    contentDescription = "Favorit",
+                    tint = if (isFavorite) Spectrum.Accent else Spectrum.OnSurface,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
 
         if (device.services.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))

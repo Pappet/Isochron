@@ -69,3 +69,6 @@ docs/handoff-extracted/
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json
+
+.agents/
+CLAUDE.md

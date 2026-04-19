@@ -362,14 +362,20 @@ private fun BtRadar(
                 val dyDp = (sin(rad).toFloat() * dist * 0.42f * side).dp
                 val isSel = d.address == selectedAddress
                 val bonded = d.bondState == BondState.BONDED
-                val dotSize = if (isSel) 12.dp else 8.dp
-                val dotColor = if (bonded) Spectrum.Accent else Spectrum.Accent2
+                val baseColor = if (bonded) Spectrum.Accent else Spectrum.Accent2
+
+                val diff = (sweep - angleDeg + 360f) % 360f
+                val lightUpAlpha = if (diff < 45f) 1f - (diff / 45f) else 0f
+                val activeColor = androidx.compose.ui.graphics.lerp(baseColor, Color.White, lightUpAlpha)
+
+                val sizeBoost = if (diff < 45f) (lightUpAlpha * 4).dp else 0.dp
+                val baseBoxSize = if (isSel) 26.dp else 22.dp
 
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
                         .offset(x = dxDp, y = dyDp)
-                        .size(if (isSel) 20.dp else 16.dp)
+                        .size(baseBoxSize + sizeBoost)
                         .clip(CircleShape)
                         .clickable { onSelect(d.address) },
                     contentAlignment = Alignment.Center,
@@ -377,17 +383,28 @@ private fun BtRadar(
                     if (isSel) {
                         Box(
                             modifier = Modifier
-                                .size(18.dp)
+                                .fillMaxSize()
                                 .clip(CircleShape)
                                 .background(Spectrum.Accent.copy(alpha = 0.25f)),
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(dotSize)
-                            .clip(CircleShape)
-                            .background(dotColor),
-                    )
+
+                    val iconVector = btTypeIcon(d.minorClass)
+                    if (iconVector == Icons.Outlined.Bluetooth && !bonded) {
+                        Box(
+                            modifier = Modifier
+                                .size(if (isSel) 12.dp + sizeBoost else 6.dp + sizeBoost)
+                                .clip(CircleShape)
+                                .background(activeColor),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = iconVector,
+                            contentDescription = null,
+                            tint = activeColor,
+                            modifier = Modifier.size(if (isSel) 18.dp + sizeBoost else 14.dp + sizeBoost)
+                        )
+                    }
                 }
             }
 
