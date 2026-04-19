@@ -1,39 +1,80 @@
 package com.scanner.app.ui.screens
 
-import androidx.compose.animation.*
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.outlined.Cast
+import androidx.compose.material.icons.outlined.DeveloperBoard
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.Router
+import androidx.compose.material.icons.outlined.Speaker
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.scanner.app.data.repository.DeviceRepository
-import com.scanner.app.util.*
+import com.scanner.app.ui.components.HairlineHorizontal
+import com.scanner.app.ui.components.HeaderStat
+import com.scanner.app.ui.components.SpectrumHeader
+import com.scanner.app.ui.components.SpectrumKicker
+import com.scanner.app.ui.components.SpectrumScanButton
+import com.scanner.app.ui.theme.JetBrainsMonoFamily
+import com.scanner.app.ui.theme.Spectrum
+import com.scanner.app.util.LanDevice
+import com.scanner.app.util.LanScanProgress
+import com.scanner.app.util.LanService
+import com.scanner.app.util.MacVendorLookup
+import com.scanner.app.util.NetworkDiscovery
+import com.scanner.app.util.NetworkInfo
+import com.scanner.app.util.PingUtil
+import com.scanner.app.util.PortRisk
+import com.scanner.app.util.PortScanProgress
+import com.scanner.app.util.PortScanResult
+import com.scanner.app.util.PortScanner
+import com.scanner.app.util.WellKnownPorts
 import kotlinx.coroutines.launch
 
-/**
- * Main screen for discovered Local Area Network (LAN) devices.
- * Uses orchestrated discovery techniques ([NetworkDiscovery]) including ARP, Ping, NetBIOS,
- * mDNS, and UPnP to identify network participants.
- * Supports deep port scanning and service banner grabbing via [PortScanner].
- */
+private val WARN_PORTS = setOf(22, 23, 80)
+
 @Composable
 fun LanScreen() {
     val context = LocalContext.current
@@ -53,29 +94,21 @@ fun LanScreen() {
 
     val portScanner = remember { PortScanner() }
 
-    DisposableEffect(Unit) {
-        onDispose { discovery.stopScan() }
-    }
+    DisposableEffect(Unit) { onDispose { discovery.stopScan() } }
 
     fun doScan() {
         isScanning = true
-        try {
-            networkInfo = pingUtil.getNetworkInfo()
-        } catch (e: Exception) {
+        try { networkInfo = pingUtil.getNetworkInfo() } catch (e: Exception) {
             android.util.Log.e("LanScreen", "Error getting network info", e)
         }
         scope.launch {
             try {
                 val result = discovery.fullScan(
                     onProgress = { try { progress = it } catch (_: Exception) {} },
-                    onDeviceFound = { try { devices = it } catch (_: Exception) {} }
+                    onDeviceFound = { try { devices = it } catch (_: Exception) {} },
                 )
                 devices = result
-
-
-                try {
-                    repository.persistLanScan(result)
-                } catch (e: Exception) {
+                try { repository.persistLanScan(result) } catch (e: Exception) {
                     android.util.Log.e("LanScreen", "Error persisting LAN scan", e)
                 }
             } catch (e: Exception) {
@@ -96,14 +129,10 @@ fun LanScreen() {
                     ip = ip,
                     ports = ports,
                     grabBanners = true,
-                    onProgress = { portScanProgress = it }
+                    onProgress = { portScanProgress = it },
                 )
                 portScanResults = portScanResults + (ip to results)
-
-
-                try {
-                    repository.persistPortScanResults(ip, results)
-                } catch (_: Exception) {}
+                try { repository.persistPortScanResults(ip, results) } catch (_: Exception) {}
             } catch (e: Exception) {
                 android.util.Log.e("LanScreen", "Port scan error", e)
             }
@@ -112,697 +141,484 @@ fun LanScreen() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    val totalOpenPorts = portScanResults.values.sumOf { it.size }
+    val subnet = networkInfo?.deviceIp
+        ?.substringBeforeLast(".")
+        ?.let { "$it.0/24" } ?: "—"
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "LAN-Geräte",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                if (hasScanned) {
-                    Text(
-                        text = "${devices.size} Geräte im Netzwerk",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            FilledTonalButton(
-                onClick = { doScan() },
-                enabled = !isScanning
-            ) {
-                if (isScanning) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Scannen")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isScanning) "Scanne..." else "Scannen")
-            }
-        }
-
+    Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
+        SpectrumHeader(
+            kicker = "LAN",
+            subtitle = "Local Net",
+            stats = listOf(
+                HeaderStat(devices.size.toString(), "hosts"),
+                HeaderStat(if (totalOpenPorts > 0) totalOpenPorts.toString() else "—", "ports"),
+                HeaderStat(subnet, "subnet"),
+            ),
+            trailing = {
+                SpectrumScanButton(scanning = isScanning, onClick = { if (!isScanning) doScan() })
+            },
+        )
 
         if (isScanning && progress != null) {
-            val p = progress!!
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                LinearProgressIndicator(
-                    progress = { p.current.toFloat() / p.total.coerceAtLeast(1) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${p.phase} (${p.devicesFound} gefunden)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+            LanProgressBar(progress!!)
         }
 
-
-        networkInfo?.let { info ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = "Netzwerk-Info",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        InfoChip("SSID", info.ssid ?: "—", Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        InfoChip("Eigene IP", info.deviceIp ?: "—", Modifier.weight(1f))
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        InfoChip("Gateway", info.gatewayIp ?: "—", Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        InfoChip("DNS", info.dns ?: "—", Modifier.weight(1f))
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-
-        if (devices.isEmpty() && !isScanning && !hasScanned) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Outlined.Lan,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Tippe auf \"Scannen\" um\nGeräte im lokalen Netzwerk zu finden.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "ARP-Tabelle · Ping-Sweep · NetBIOS · mDNS · UPnP",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        } else if (devices.isEmpty() && hasScanned) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Keine Geräte gefunden.\nBist du mit einem WLAN verbunden?",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+        when {
+            devices.isEmpty() && !hasScanned -> LanEmptyState(hasScanned = false)
+            devices.isEmpty() && hasScanned -> LanEmptyState(hasScanned = true)
+            else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(devices, key = { it.ip }) { device ->
-                    LanDeviceCard(
+                    LanDeviceRow(
                         device = device,
                         portResults = portScanResults[device.ip] ?: emptyList(),
                         hasBeenPortScanned = device.ip in portScanResults,
                         isPortScanning = portScanningIp == device.ip,
                         portProgress = if (portScanningIp == device.ip) portScanProgress else null,
-                        onPortScan = { ports -> startPortScan(device.ip, ports) }
+                        onPortScan = { ports -> startPortScan(device.ip, ports) },
                     )
+                    HairlineHorizontal()
                 }
-                item { Spacer(modifier = Modifier.height(80.dp)) }
+                item { Spacer(Modifier.height(24.dp)) }
             }
         }
     }
 }
 
-/**
- * Renders a single LAN device entry with an expandable detail section.
- * Handles port scan triggering and results visualization.
- */
 @Composable
-fun LanDeviceCard(
+private fun LanProgressBar(progress: LanScanProgress) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Spectrum.SurfaceRaised)
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+    ) {
+        val pct = progress.current.toFloat() / progress.total.coerceAtLeast(1)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Spectrum.GridLine)) {
+            Box(Modifier.fillMaxWidth(pct).height(1.dp).background(Spectrum.Accent))
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "${progress.phase} · ${progress.devicesFound} gefunden",
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Spectrum.OnSurfaceDim,
+            letterSpacing = 0.1.em,
+        )
+    }
+}
+
+@Composable
+private fun LanEmptyState(hasScanned: Boolean) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SpectrumKicker(
+                if (hasScanned) "KEINE GERÄTE" else "KEIN SCAN · ARP · PING · MDNS · UPNP",
+                color = Spectrum.OnSurfaceDim,
+            )
+            Text(
+                if (hasScanned)
+                    "Keine Geräte gefunden.\nBist du mit einem WLAN verbunden?"
+                else
+                    "Tippe auf SCAN um Geräte im lokalen Netzwerk zu finden.",
+                color = Spectrum.OnSurfaceDim,
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LanDeviceRow(
     device: LanDevice,
     portResults: List<PortScanResult>,
     hasBeenPortScanned: Boolean,
     isPortScanning: Boolean,
     portProgress: PortScanProgress?,
-    onPortScan: (List<Int>) -> Unit
+    onPortScan: (List<Int>) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val icon = when {
+    val icon: ImageVector = when {
         device.isGateway -> Icons.Outlined.Router
         device.isOwnDevice -> Icons.Outlined.PhoneAndroid
-        device.services.any { it.type.contains("printer") || it.type.contains("ipp") } ->
-            Icons.Outlined.Print
-        device.services.any { it.type.contains("airplay") || it.type.contains("raop") } ->
-            Icons.Outlined.Speaker
-        device.services.any { it.type.contains("googlecast") } ->
-            Icons.Outlined.Cast
-        device.services.any { it.type.contains("smb") } ->
-            Icons.Outlined.Storage
-        device.services.any { it.type.contains("ssh") } ->
-            Icons.Outlined.Terminal
-        device.services.any { it.type.contains("http") } ->
-            Icons.Outlined.Language
-        device.vendor?.contains("Raspberry") == true -> Icons.Outlined.DeveloperBoard
-        device.vendor?.contains("ESP") == true -> Icons.Outlined.Memory
+        device.services.any { it.type.contains("printer") || it.type.contains("ipp") } -> Icons.Outlined.Print
+        device.services.any { it.type.contains("airplay") || it.type.contains("raop") } -> Icons.Outlined.Speaker
+        device.services.any { it.type.contains("googlecast") } -> Icons.Outlined.Cast
+        device.services.any { it.type.contains("smb") } -> Icons.Outlined.Storage
+        device.services.any { it.type.contains("ssh") } -> Icons.Outlined.Terminal
+        device.services.any { it.type.contains("http") } -> Icons.Outlined.Language
+        device.vendor?.contains("Raspberry", ignoreCase = true) == true -> Icons.Outlined.DeveloperBoard
+        device.vendor?.contains("ESP", ignoreCase = true) == true -> Icons.Outlined.Memory
         else -> Icons.Outlined.Devices
     }
 
-    val accentColor = when {
-        device.isGateway -> MaterialTheme.colorScheme.primary
-        device.isOwnDevice -> MaterialTheme.colorScheme.tertiary
-        device.services.isNotEmpty() -> MaterialTheme.colorScheme.secondary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    // Port scan results take priority; fall back to mDNS service ports
+    val displayPorts: List<Int> = if (portResults.isNotEmpty()) {
+        portResults.map { it.port }
+    } else {
+        device.services.map { it.port }.filter { it > 0 }
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .clickable { expanded = !expanded },
-        colors = CardDefaults.cardColors(
-            containerColor = if (device.isGateway || device.isOwnDevice)
-                accentColor.copy(alpha = 0.08f)
-            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // 32dp icon tile
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Spectrum.SurfaceRaised)
+                    .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp)),
+                contentAlignment = Alignment.Center,
             ) {
-                // Icon
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.12f))
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Info
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = device.hostname
-                                ?: device.vendor
-                                ?: device.ip,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        if (device.isGateway) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            RoleChip("Gateway", accentColor)
-                        }
-                        if (device.isOwnDevice) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            RoleChip("Dieses Gerät", accentColor)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = device.ip,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        device.vendor?.let {
-                            Text(
-                                text = " · $it",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // Method + latency
-                Column(horizontalAlignment = Alignment.End) {
-                    device.latencyMs?.let { ms ->
-                        val latencyColor = when {
-                            ms < 5f -> Color(0xFF4CAF50)
-                            ms < 30f -> Color(0xFFFF9800)
-                            else -> Color(0xFFF44336)
-                        }
-                        Text(
-                            text = "${"%.0f".format(ms)} ms",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = latencyColor
-                        )
-                    }
-                    if (device.services.isNotEmpty()) {
-                        Text(
-                            text = "${device.services.size} Dienste",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                    if (portResults.isNotEmpty()) {
-                        Text(
-                            text = "${portResults.size} Ports offen",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFE64A19)
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Spectrum.Accent,
+                    modifier = Modifier.size(16.dp),
+                )
             }
 
-
-            if (expanded) {
-                Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                Spacer(modifier = Modifier.height(10.dp))
-
-
-                device.mac?.let { mac ->
-                    DetailRowMono("MAC", mac)
-                    MacVendorLookup.lookup(mac)?.let { fullVendor ->
-                        DetailRowMono("Hersteller", fullVendor)
+            // IP + name/vendor meta
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = device.ip,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 14.sp,
+                    color = Spectrum.OnSurface,
+                    maxLines = 1,
+                )
+                val meta = buildString {
+                    append(device.hostname ?: device.vendor ?: "—")
+                    if (device.hostname != null && device.vendor != null) {
+                        append(" · ${device.vendor}")
                     }
                 }
+                Text(
+                    text = meta,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 10.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
-                device.hostname?.let {
-                    DetailRowMono("Hostname", it)
-                }
-
-                DetailRowMono("Entdeckt via", device.discoveredVia.displayName())
-
-                device.latencyMs?.let {
-                    DetailRowMono("Latenz", "${"%.1f".format(it)} ms")
-                }
-
-
-                if (device.services.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+            // Port chips: first 4, then overflow count
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                displayPorts.take(4).forEach { port -> LanPortChip(port) }
+                if (displayPorts.size > 4) {
                     Text(
-                        text = "DIENSTE (mDNS)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    device.services.forEach { service ->
-                        ServiceRow(service)
-                    }
-                }
-
-
-                device.upnpInfo?.let { upnp ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "UPnP",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF42A5F5)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    upnp.friendlyName?.let { DetailRowMono("Name", it) }
-                    upnp.manufacturer?.let { DetailRowMono("Hersteller", it) }
-                    upnp.modelName?.let { DetailRowMono("Modell", it) }
-                    upnp.modelDescription?.let { DetailRowMono("Beschreibung", it) }
-                    upnp.deviceType?.let { DetailRowMono("Gerätetyp", it) }
-                    if (upnp.services.isNotEmpty()) {
-                        DetailRowMono("UPnP-Dienste", upnp.services.joinToString(", "))
-                    }
-                }
-
-
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (hasBeenPortScanned) "PORT-SCAN (${portResults.size} offen)" else "PORT-SCAN",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = { onPortScan(WellKnownPorts.QUICK_20) },
-                        enabled = !isPortScanning,
-                        modifier = Modifier.height(28.dp).weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp)
-                    ) {
-                        if (isPortScanning) {
-                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
-                        } else {
-                            Text("Top 20", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    FilledTonalButton(
-                        onClick = { onPortScan(WellKnownPorts.TOP_50) },
-                        enabled = !isPortScanning,
-                        modifier = Modifier.height(28.dp).weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp)
-                    ) {
-                        Text("Top 50", style = MaterialTheme.typography.labelSmall)
-                    }
-                    FilledTonalButton(
-                        onClick = { onPortScan(WellKnownPorts.TOP_200) },
-                        enabled = !isPortScanning,
-                        modifier = Modifier.height(28.dp).weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp)
-                    ) {
-                        Text("Top 200", style = MaterialTheme.typography.labelSmall)
-                    }
-                    FilledTonalButton(
-                        onClick = { onPortScan(WellKnownPorts.ALL_PORTS) },
-                        enabled = !isPortScanning,
-                        modifier = Modifier.height(28.dp).weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Text("Alle", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-
-
-                if (isPortScanning) {
-                    portProgress?.let { p ->
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LinearProgressIndicator(
-                            progress = { p.scanned.toFloat() / p.total.coerceAtLeast(1) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                        )
-                        Text(
-                            text = buildString {
-                                val pct = (p.scanned * 100 / p.total.coerceAtLeast(1))
-                                append("Port ${p.currentPort} · $pct% (${p.scanned}/${p.total}) · ${p.openPorts} offen")
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-
-                if (portResults.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    portResults.forEach { port ->
-                        val risk = WellKnownPorts.riskLevel(port.port)
-                        val riskColor = when (risk) {
-                            PortRisk.CRITICAL -> Color(0xFFD32F2F)
-                            PortRisk.HIGH -> Color(0xFFE64A19)
-                            PortRisk.MEDIUM -> Color(0xFFF57C00)
-                            PortRisk.LOW -> Color(0xFFFBC02D)
-                            PortRisk.INFO -> Color(0xFF42A5F5)
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(riskColor)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${port.port}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.width(44.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "${port.serviceName} (${risk.label})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                port.banner?.let {
-                                    Text(
-                                        text = it.take(60),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                            port.latencyMs?.let {
-                                Text(
-                                    text = "${"%.0f".format(it)}ms",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            WellKnownPorts.browseUrl(port)?.let { url ->
-                                Spacer(modifier = Modifier.width(4.dp))
-                                val context = LocalContext.current
-                                IconButton(
-                                    onClick = {
-                                        try {
-                                            val intent = android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(url)
-                                            )
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {}
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.OpenInBrowser,
-                                        contentDescription = "Im Browser öffnen",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else if (hasBeenPortScanned && portResults.isEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Keine offenen Ports gefunden.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "+${displayPorts.size - 4}",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 9.sp,
+                        color = Spectrum.OnSurfaceDim,
+                        modifier = Modifier.align(Alignment.CenterVertically),
                     )
                 }
             }
         }
+
+        if (expanded) {
+            LanDeviceDetail(
+                device = device,
+                portResults = portResults,
+                hasBeenPortScanned = hasBeenPortScanned,
+                isPortScanning = isPortScanning,
+                portProgress = portProgress,
+                onPortScan = onPortScan,
+            )
+        }
     }
 }
 
-
+@Composable
+private fun LanPortChip(port: Int) {
+    val risk = port in WARN_PORTS
+    Text(
+        text = port.toString(),
+        modifier = Modifier
+            .clip(RoundedCornerShape(2.dp))
+            .background(Spectrum.SurfaceRaised)
+            .border(
+                1.dp,
+                if (risk) Spectrum.Warning else Spectrum.GridLine,
+                RoundedCornerShape(2.dp),
+            )
+            .padding(horizontal = 5.dp, vertical = 3.dp),
+        color = if (risk) Spectrum.Warning else Spectrum.OnSurfaceDim,
+        fontFamily = JetBrainsMonoFamily,
+        fontSize = 9.sp,
+        letterSpacing = 0.04.em,
+    )
+}
 
 @Composable
-fun InfoChip(label: String, value: String, modifier: Modifier = Modifier) {
+private fun LanDeviceDetail(
+    device: LanDevice,
+    portResults: List<PortScanResult>,
+    hasBeenPortScanned: Boolean,
+    isPortScanning: Boolean,
+    portProgress: PortScanProgress?,
+    onPortScan: (List<Int>) -> Unit,
+) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Monospace,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-        )
-    }
-}
-
-/**
- * Small badge for indicating a device's role (e.g., "Gateway", "Own Device").
- */
-@Composable
-fun RoleChip(text: String, color: Color) {
-    Surface(
-        color = color.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(4.dp)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-        )
-    }
-}
-
-/**
- * Simple key-value row for device details.
- */
-@Composable
-fun DetailRowMono(label: String, value: String) {
-    Row(
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .background(Spectrum.SurfaceRaised)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            fontFamily = if (value.contains(":") || value.contains("."))
-                FontFamily.Monospace else FontFamily.Default
-        )
-    }
-}
+        device.mac?.let { LanDetailRow("MAC", it) }
+        device.mac?.let { mac ->
+            MacVendorLookup.lookup(mac)?.let { LanDetailRow("Hersteller", it) }
+        }
+        device.hostname?.let { LanDetailRow("Hostname", it) }
+        LanDetailRow("Entdeckt via", device.discoveredVia.displayName())
+        device.latencyMs?.let { LanDetailRow("Latenz", "${"%.1f".format(it)} ms") }
+        if (device.isGateway) LanDetailRow("Rolle", "Gateway")
+        if (device.isOwnDevice) LanDetailRow("Rolle", "Dieses Gerät")
 
-/**
- * Row representing a discovered mDNS service.
- */
-@Composable
-fun ServiceRow(service: LanService) {
-    val serviceIcon = when {
-        service.type.contains("http") -> Icons.Outlined.Language
-        service.type.contains("printer") || service.type.contains("ipp") -> Icons.Outlined.Print
-        service.type.contains("ssh") -> Icons.Outlined.Terminal
-        service.type.contains("smb") -> Icons.Outlined.FolderShared
-        service.type.contains("ftp") -> Icons.Outlined.CloudUpload
-        service.type.contains("airplay") || service.type.contains("raop") -> Icons.Outlined.Speaker
-        service.type.contains("googlecast") -> Icons.Outlined.Cast
-        service.type.contains("spotify") -> Icons.Outlined.MusicNote
-        service.type.contains("homekit") -> Icons.Outlined.Home
-        else -> Icons.Outlined.Dns
-    }
+        if (device.services.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            SpectrumKicker("DIENSTE (mDNS) · ${device.services.size}", color = Spectrum.OnSurfaceDim)
+            Spacer(Modifier.height(4.dp))
+            device.services.forEach { LanServiceRow(it) }
+        }
 
-    val friendlyType = when {
-        service.type.contains("_http._tcp") -> "Webserver"
-        service.type.contains("_https._tcp") -> "HTTPS"
-        service.type.contains("_printer._tcp") -> "Drucker"
-        service.type.contains("_ipp._tcp") -> "Drucker (IPP)"
-        service.type.contains("_ssh._tcp") -> "SSH"
-        service.type.contains("_smb._tcp") -> "Dateifreigabe"
-        service.type.contains("_ftp._tcp") -> "FTP"
-        service.type.contains("_airplay._tcp") -> "AirPlay"
-        service.type.contains("_raop._tcp") -> "AirPlay Audio"
-        service.type.contains("_googlecast._tcp") -> "Chromecast"
-        service.type.contains("_spotify-connect._tcp") -> "Spotify Connect"
-        service.type.contains("_homekit._tcp") -> "HomeKit"
-        else -> service.type
-    }
+        device.upnpInfo?.let { upnp ->
+            Spacer(Modifier.height(4.dp))
+            SpectrumKicker("UPNP", color = Spectrum.Accent2)
+            Spacer(Modifier.height(4.dp))
+            upnp.friendlyName?.let { LanDetailRow("Name", it) }
+            upnp.manufacturer?.let { LanDetailRow("Hersteller", it) }
+            upnp.modelName?.let { LanDetailRow("Modell", it) }
+            upnp.modelDescription?.let { LanDetailRow("Beschreibung", it) }
+            upnp.deviceType?.let { LanDetailRow("Gerätetyp", it) }
+            if (upnp.services.isNotEmpty()) {
+                LanDetailRow("UPnP-Dienste", upnp.services.joinToString(", "))
+            }
+        }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = serviceIcon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.size(16.dp)
+        Spacer(Modifier.height(6.dp))
+        HairlineHorizontal()
+        Spacer(Modifier.height(8.dp))
+
+        SpectrumKicker(
+            text = if (hasBeenPortScanned) "PORT-SCAN · ${portResults.size} OFFEN" else "PORT-SCAN",
+            color = Spectrum.OnSurfaceDim,
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                "Top 20" to WellKnownPorts.QUICK_20,
+                "Top 50" to WellKnownPorts.TOP_50,
+                "Top 200" to WellKnownPorts.TOP_200,
+                "Alle" to WellKnownPorts.ALL_PORTS,
+            ).forEach { (label, ports) ->
+                LanActionChip(
+                    label = label,
+                    enabled = !isPortScanning,
+                    danger = label == "Alle",
+                    onClick = { onPortScan(ports) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        if (isPortScanning && portProgress != null) {
+            Spacer(Modifier.height(6.dp))
+            val pct = portProgress.scanned.toFloat() / portProgress.total.coerceAtLeast(1)
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Spectrum.GridLine)) {
+                Box(Modifier.fillMaxWidth(pct).height(1.dp).background(Spectrum.Accent))
+            }
+            Spacer(Modifier.height(3.dp))
             Text(
-                text = service.name,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = friendlyType,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Port ${portProgress.currentPort} · ${(pct * 100).toInt()}% · ${portProgress.openPorts} offen",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 9.sp,
+                color = Spectrum.OnSurfaceDim,
             )
         }
+
+        if (portResults.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            portResults.forEach { LanOpenPortRow(it) }
+        } else if (hasBeenPortScanned) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Keine offenen Ports gefunden.",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.OnSurfaceDim,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LanDetailRow(label: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
         Text(
-            text = ":${service.port}",
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Spectrum.OnSurfaceDim,
         )
+        Text(
+            value,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Spectrum.OnSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 16.dp),
+        )
+    }
+}
+
+@Composable
+private fun LanServiceRow(service: LanService) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            service.name.ifBlank { service.type },
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Spectrum.OnSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            ":${service.port}",
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Spectrum.OnSurfaceDim,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun LanActionChip(
+    label: String,
+    enabled: Boolean,
+    danger: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val borderColor = when {
+        !enabled -> Spectrum.GridLine
+        danger -> Spectrum.Danger.copy(alpha = 0.5f)
+        else -> Spectrum.GridLine
+    }
+    val textColor = when {
+        !enabled -> Spectrum.OnSurfaceFaint
+        danger -> Spectrum.Danger
+        else -> Spectrum.OnSurfaceDim
+    }
+    Box(
+        modifier
+            .clip(RoundedCornerShape(2.dp))
+            .background(Spectrum.Surface)
+            .border(1.dp, borderColor, RoundedCornerShape(2.dp))
+            .clickable(enabled = enabled) { onClick() }
+            .padding(vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 9.sp,
+            color = textColor,
+            letterSpacing = 0.1.em,
+        )
+    }
+}
+
+@Composable
+private fun LanOpenPortRow(port: PortScanResult) {
+    val context = LocalContext.current
+    val riskColor = when (WellKnownPorts.riskLevel(port.port)) {
+        PortRisk.CRITICAL -> Spectrum.Danger
+        PortRisk.HIGH -> Spectrum.SeverityHigh
+        PortRisk.MEDIUM -> Spectrum.Warning
+        PortRisk.LOW -> Spectrum.SeverityLow
+        PortRisk.INFO -> Spectrum.OnSurfaceDim
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(5.dp).clip(CircleShape).background(riskColor))
+        Text(
+            "${port.port}",
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = riskColor,
+            modifier = Modifier.width(40.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                "${port.serviceName} · ${WellKnownPorts.riskLevel(port.port).label}",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.OnSurface,
+            )
+            port.banner?.let {
+                Text(
+                    it.take(60),
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 9.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        port.latencyMs?.let {
+            Text(
+                "${"%.0f".format(it)}ms",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 9.sp,
+                color = Spectrum.OnSurfaceDim,
+            )
+        }
+        WellKnownPorts.browseUrl(port)?.let { url ->
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(1.dp, Spectrum.GridLine, RoundedCornerShape(2.dp))
+                    .clickable {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (_: Exception) {}
+                    }
+                    .padding(horizontal = 5.dp, vertical = 3.dp),
+            ) {
+                Text("↗", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = Spectrum.OnSurfaceDim)
+            }
+        }
     }
 }
