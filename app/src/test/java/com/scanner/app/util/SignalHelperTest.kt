@@ -1,6 +1,7 @@
 package com.scanner.app.util
 
 import androidx.compose.ui.graphics.toArgb
+import com.scanner.app.R
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -40,58 +41,56 @@ class SignalHelperTest {
         assertEquals(0.5f, fraction, 0.02f)
     }
 
-    // ─── wifiQuality ─────────────────────────────────────────────────────────────
-
+    // ─── wifiQualityResId ────────────────────────────────────────────────────────
     @Test
-    fun `wifiQuality at -45 dBm is Exzellent`() {
-        assertEquals("Exzellent", SignalHelper.wifiQuality(-45))
+    fun `wifiQualityResId at -45 dBm is excellent`() {
+        assertEquals(R.string.quality_excellent, SignalHelper.wifiQualityResId(-45))
     }
 
     @Test
-    fun `wifiQuality at -55 dBm is Sehr gut`() {
-        assertEquals("Sehr gut", SignalHelper.wifiQuality(-55))
+    fun `wifiQualityResId at -55 dBm is very good`() {
+        assertEquals(R.string.quality_very_good, SignalHelper.wifiQualityResId(-55))
     }
 
     @Test
-    fun `wifiQuality at -65 dBm is Gut`() {
-        assertEquals("Gut", SignalHelper.wifiQuality(-65))
+    fun `wifiQualityResId at -65 dBm is good`() {
+        assertEquals(R.string.quality_good, SignalHelper.wifiQualityResId(-65))
     }
 
     @Test
-    fun `wifiQuality at -75 dBm is Mittel`() {
-        assertEquals("Mittel", SignalHelper.wifiQuality(-75))
+    fun `wifiQualityResId at -75 dBm is fair`() {
+        assertEquals(R.string.quality_fair, SignalHelper.wifiQualityResId(-75))
     }
 
     @Test
-    fun `wifiQuality at -90 dBm is Schwach`() {
-        assertEquals("Schwach", SignalHelper.wifiQuality(-90))
+    fun `wifiQualityResId at -90 dBm is poor`() {
+        assertEquals(R.string.quality_poor, SignalHelper.wifiQualityResId(-90))
     }
 
     @Test
-    fun `wifiQuality boundary at exactly -50 dBm is Exzellent`() {
-        assertEquals("Exzellent", SignalHelper.wifiQuality(-50))
+    fun `wifiQualityResId boundary at exactly -50 dBm is excellent`() {
+        assertEquals(R.string.quality_excellent, SignalHelper.wifiQualityResId(-50))
     }
 
     @Test
-    fun `wifiQuality boundary at exactly -60 dBm is Sehr gut`() {
-        assertEquals("Sehr gut", SignalHelper.wifiQuality(-60))
+    fun `wifiQualityResId boundary at exactly -60 dBm is very good`() {
+        assertEquals(R.string.quality_very_good, SignalHelper.wifiQualityResId(-60))
     }
 
-    // ─── bluetoothQuality ────────────────────────────────────────────────────────
-
+    // ─── bluetoothQualityResId ──────────────────────────────────────────────────
     @Test
-    fun `bluetoothQuality at -50 is Stark`() {
-        assertEquals("Stark", SignalHelper.bluetoothQuality(-50))
-    }
-
-    @Test
-    fun `bluetoothQuality at -70 is Mittel`() {
-        assertEquals("Mittel", SignalHelper.bluetoothQuality(-70))
+    fun `bluetoothQualityResId at -50 is strong`() {
+        assertEquals(R.string.quality_strong, SignalHelper.bluetoothQualityResId(-50))
     }
 
     @Test
-    fun `bluetoothQuality at -90 is Schwach`() {
-        assertEquals("Schwach", SignalHelper.bluetoothQuality(-90))
+    fun `bluetoothQualityResId at -70 is fair`() {
+        assertEquals(R.string.quality_fair, SignalHelper.bluetoothQualityResId(-70))
+    }
+
+    @Test
+    fun `bluetoothQualityResId at -90 is poor`() {
+        assertEquals(R.string.quality_poor, SignalHelper.bluetoothQualityResId(-90))
     }
 
     // ─── signalColor (Compose Color, accessible in JVM unit tests) ───────────────
