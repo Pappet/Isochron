@@ -18,7 +18,7 @@
 
 The project follows the **Repository Pattern** with manual Dependency Injection, coupled with modern **state management** via Compose:
 
-- **UI Layer**: Fully declarative using Jetpack Compose. UI state is hoisted and managed using `mutableStateOf` and `StateFlow`. Performance-critical views (like `MapScreen`) implement incremental marker diffing to minimize UI rebuilds.
+- **UI Layer**: Fully declarative using Jetpack Compose. UI state is managed within dedicated **ViewModels** for each Screen, utilizing `StateFlow` to ensure state persistence across navigation and configuration changes. Performance-critical views (like `MapScreen`) implement incremental marker diffing to minimize UI rebuilds.
 - **Repository Layer**: Abstracts data access for the Room database. It exposes Coroutine-powered `Flows` which are collected in the UI using `collectAsState()`, providing a reactive data pipeline.
 - **Service Layer**: A foreground service (`ScanService.kt`) handles persistent monitoring tasks independently of the UI lifecycle.
 - **Util Layer**: Encapsulates hardware and network APIs (WifiManager, BluetoothAdapter, InetAddress) in dedicated classes (e.g., `WifiScanner.kt`). This decouples the UI from Android framework specifics and enhances testability.
@@ -50,6 +50,7 @@ The data flow for a typical scanning feature follows this pattern:
 - `theme/`: Material 3 theme configuration including dynamic color support.
 - `components/`: Reusable, atomic UI components (Cards, Charts, Dialogs).
 - `screens/`: Complex feature-specific view hierarchies.
+- `viewmodel/`: Screen-specific ViewModels for state management and UI logic.
 
 ### Utility Layer (`util/`)
 - `*Scanner.kt` / `*Analyzer.kt`: Wrappers for Android system APIs and complex logic engines.

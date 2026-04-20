@@ -54,7 +54,7 @@ A native Android application for scanning and analyzing **WiFi networks**, **Blu
 | Language | Kotlin |
 | UI Framework | Jetpack Compose + Material Design 3 |
 | Database | Room (SQLite) |
-| Architecture | Repository Pattern (Manual DI) |
+| Architecture | MVVM with Repository Pattern (Manual DI) |
 | Concurrency | Kotlin Coroutines + Asynchronous Flow |
 | Maps | OSMDroid (OpenStreetMap) |
 | Networking | WifiManager, BluetoothAdapter, NsdManager, InetAddress |
@@ -100,7 +100,7 @@ The application requires specific permissions to function correctly:
   - `MainActivity.kt`: Main UI orchestration.
   - `data/`: Room entities, DAOs, and domain models.
   - `service/`: Foreground monitoring service.
-  - `ui/`: Compose themes, screens, and reusable components.
+  - `ui/`: Compose themes, screens, ViewModels, and reusable components.
   - `util/`: Core scanning logic, analysis engines, and export management.
 
 ## License
