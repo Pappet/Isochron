@@ -98,6 +98,9 @@ interface DeviceDao {
     @Query("SELECT COUNT(*) FROM discovered_devices WHERE device_category IN ('BT_CLASSIC', 'BT_BLE')")
     fun observeBluetoothCount(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM discovered_devices WHERE device_category = :category")
+    fun observeDeviceCountByCategory(category: DeviceCategory): Flow<Int>
+
     /**
      * Searches for devices matching a partial [query] in name, label, address, notes, or metadata.
      */

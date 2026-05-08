@@ -117,8 +117,7 @@ fun InventoryScreen(
     val totalCount by repository.observeTotalDeviceCount().collectAsState(initial = 0)
     val wifiCount by repository.observeWifiCount().collectAsState(initial = 0)
     val btCount by repository.observeBluetoothCount().collectAsState(initial = 0)
-    val lanCount by repository.observeDevicesByCategory(DeviceCategory.LAN)
-        .map { it.size }.collectAsState(initial = 0)
+    val lanCount by repository.observeDeviceCountByCategory(DeviceCategory.LAN).collectAsState(initial = 0)
 
     val editDialogDevice = vm.editDialogDevice
     val showExportDialog = vm.showExportDialog

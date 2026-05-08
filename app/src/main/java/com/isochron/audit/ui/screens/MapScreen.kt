@@ -246,11 +246,8 @@ fun MapScreen(vm: MapViewModel = viewModel()) {
     val context = LocalContext.current
     val repository = vm.repository
 
-    val devices by
-            repository
-                    .observeDevicesByCategory(DeviceCategory.WIFI)
-                    .map { list -> list.mapNotNull { parseGeoDevice(it) } }
-                    .collectAsState(initial = emptyList())
+    val rawDevices by repository.observeDevicesByCategory(DeviceCategory.WIFI).collectAsState(initial = emptyList())
+    val devices = remember(rawDevices) { rawDevices.mapNotNull { parseGeoDevice(it) } }
 
     val scanPoints: List<ScanPoint> =
             remember(devices) {

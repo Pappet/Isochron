@@ -103,12 +103,16 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
         }
     }
 
+    // ⚡ Bolt Performance Optimization:
+    // Ensure `isRisk` and counts are memoized correctly (already done nicely here!).
     val riskCount   = remember(networks) { networks.count { it.isRisk() } }
     val count24     = remember(networks) { networks.count { it.band.contains("2.4") } }
     val count5      = remember(networks) { networks.count { it.band.contains("5") } }
 
     val favorites by vm.repository.observeFavorites().collectAsState(initial = emptyList())
-    val favoriteAddresses = favorites.map { it.address }.toSet()
+    // ⚡ Bolt Performance Optimization:
+    // Remember the mapped favorites Set to avoid creating a new Set on every recomposition, reducing GC pressure.
+    val favoriteAddresses = remember(favorites) { favorites.map { it.address }.toSet() }
 
     vm.selectedNetwork?.let { network ->
         val favEntity by vm.repository.observeDeviceByAddress(network.bssid).collectAsState(initial = null)
