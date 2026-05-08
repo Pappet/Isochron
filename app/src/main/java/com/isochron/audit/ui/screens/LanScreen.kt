@@ -86,12 +86,18 @@ fun LanScreen(vm: LanViewModel = viewModel()) {
     val portScanProgress = vm.portScanProgress
 
     val favorites by vm.repository.observeFavorites().collectAsState(initial = emptyList())
-    val favoriteAddresses = favorites.map { it.address }.toSet()
+    // ⚡ Bolt Performance Optimization:
+    // Remember the mapped favorites Set to avoid creating a new Set on every recomposition, reducing GC pressure.
+    val favoriteAddresses = remember(favorites) { favorites.map { it.address }.toSet() }
 
-    val totalOpenPorts = portScanResults.values.sumOf { it.size }
-    val subnet = networkInfo?.deviceIp
-        ?.substringBeforeLast(".")
-        ?.let { "$it.0/24" } ?: "—"
+    // ⚡ Bolt Performance Optimization:
+    // Memoize string manipulation and list sums so they do not run on every recomposition.
+    val totalOpenPorts = remember(portScanResults) { portScanResults.values.sumOf { it.size } }
+    val subnet = remember(networkInfo?.deviceIp) {
+        networkInfo?.deviceIp
+            ?.substringBeforeLast(".")
+            ?.let { "$it.0/24" } ?: "—"
+    }
 
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         SpectrumHeader(

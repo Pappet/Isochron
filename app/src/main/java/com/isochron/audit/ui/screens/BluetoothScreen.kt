@@ -127,12 +127,18 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
         return
     }
 
-    val bondedCount = devices.count { it.bondState == BondState.BONDED }
-    val bleCount = devices.count { it.type == DeviceType.BLE || it.type == DeviceType.DUAL }
-    val selected = devices.firstOrNull { it.address == vm.selectedAddress }
+    // ⚡ Bolt Performance Optimization:
+    // Memoize expensive O(N) list operations so they do not run on every recomposition.
+    // This reduces CPU overhead and avoids unnecessary memory allocations per frame.
+    val bondedCount = remember(devices) { devices.count { it.bondState == BondState.BONDED } }
+    val bleCount = remember(devices) { devices.count { it.type == DeviceType.BLE || it.type == DeviceType.DUAL } }
+    val selected = remember(devices, vm.selectedAddress) { devices.firstOrNull { it.address == vm.selectedAddress } }
 
     val favorites by vm.repository.observeFavorites().collectAsState(initial = emptyList())
-    val favoriteAddresses = favorites.map { it.address }.toSet()
+    // ⚡ Bolt Performance Optimization:
+    // Remember the mapped favorites Set to avoid creating a new Set on every recomposition, reducing GC pressure.
+    val favoriteAddresses = remember(favorites) { favorites.map { it.address }.toSet() }
+    val sortedDevices = remember(devices) { devices.sortedByDescending { it.rssi ?: -120 } }
 
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         SpectrumHeader(
@@ -200,8 +206,7 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                     )
                 }
-                val sorted = devices.sortedByDescending { it.rssi ?: -120 }
-                items(sorted, key = { it.address }) { d ->
+                items(sortedDevices, key = { it.address }) { d ->
                     BtListRow(device = d, isFavorite = d.address in favoriteAddresses, onClick = { vm.selectedAddress = d.address })
                     HairlineHorizontal()
                 }

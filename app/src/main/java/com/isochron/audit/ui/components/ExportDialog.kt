@@ -53,8 +53,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
 
     val wifiCount by repository.observeWifiCount().collectAsState(initial = 0)
     val btCount by repository.observeBluetoothCount().collectAsState(initial = 0)
-    val lanCount by repository.observeDevicesByCategory(DeviceCategory.LAN)
-        .map { it.size }.collectAsState(initial = 0)
+    val lanCount by repository.observeDeviceCountByCategory(DeviceCategory.LAN).collectAsState(initial = 0)
 
     val totalCount = (if (wifiEnabled) wifiCount else 0) +
             (if (btEnabled) btCount else 0) +

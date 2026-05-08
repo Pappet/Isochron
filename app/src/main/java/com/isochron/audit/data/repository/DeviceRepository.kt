@@ -225,6 +225,7 @@ class DeviceRepository(context: Context) {
     fun observeTotalDeviceCount(): Flow<Int> = dao.observeTotalDeviceCount()
     fun observeWifiCount(): Flow<Int> = dao.observeWifiCount()
     fun observeBluetoothCount(): Flow<Int> = dao.observeBluetoothCount()
+    fun observeDeviceCountByCategory(category: DeviceCategory): Flow<Int> = dao.observeDeviceCountByCategory(category)
 
     suspend fun getTotalScanCount(): Int = dao.getTotalScanCount()
     suspend fun getDeviceCountByCategory(): List<CategoryCount> = dao.getDeviceCountByCategory()
