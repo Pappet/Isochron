@@ -492,6 +492,16 @@ class NetworkDiscovery(private val context: Context) {
                     async {
                         val url = locationMap[ip] ?: return@async
                         try {
+                            // SSRF Protection: Validate the URL host matches the sender IP and is http/https
+                            val parsedUrl = java.net.URL(url)
+                            val proto = parsedUrl.protocol.lowercase()
+                            val host = parsedUrl.host.replace("[", "").replace("]", "")
+
+                            if ((proto != "http" && proto != "https") || host != ip) {
+                                Log.w("NetworkDiscovery", "SSRF protection: Invalid UPnP URL ($url) from IP $ip")
+                                return@async
+                            }
+
                             val upnpInfo = fetchUpnpDescription(url)
                             if (upnpInfo != null) {
                                 synchronized(discoveredDevices) {
