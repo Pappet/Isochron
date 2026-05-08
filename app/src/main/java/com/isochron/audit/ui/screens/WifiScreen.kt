@@ -301,7 +301,7 @@ private fun WifiGpsStrip(
                         .clickable { onExport() }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
-                    Icon(Icons.Outlined.FileDownload, contentDescription = null, tint = Spectrum.Accent, modifier = Modifier.size(12.dp))
+                    Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.export_wardriving), tint = Spectrum.Accent, modifier = Modifier.size(12.dp))
                 }
             }
             Switch(
