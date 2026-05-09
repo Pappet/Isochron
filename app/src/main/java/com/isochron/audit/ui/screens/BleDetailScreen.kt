@@ -108,6 +108,7 @@ fun GattDetailView(
 
 @Composable
 private fun GattHeader(state: GattExplorerState, onDisconnect: () -> Unit) {
+    val characteristicCount = remember(state.services) { state.services.sumOf { it.characteristics.size } }
     Column(
         Modifier
             .fillMaxWidth()
@@ -158,7 +159,7 @@ private fun GattHeader(state: GattExplorerState, onDisconnect: () -> Unit) {
                 StatPair(state.deviceAddress.ifBlank { "—" }, null)
                 StatPair(state.rssi?.toString() ?: "—", "dBm")
                 StatPair(state.services.size.toString(), "svc")
-                StatPair(state.services.sumOf { it.characteristics.size }.toString(), "chr")
+                StatPair(characteristicCount.toString(), "chr")
             }
         }
 
@@ -617,7 +618,7 @@ internal fun buildGattJson(state: GattExplorerState): String {
     })
 
     root.put("serviceCount", state.services.size)
-    root.put("characteristicCount", state.services.sumOf { it.characteristics.size })
+    root.put("characteristicCount", state.services.sumOf { it.characteristics.size }) // not inside @Composable
 
     val servicesArr = org.json.JSONArray()
     for (service in state.services) {
