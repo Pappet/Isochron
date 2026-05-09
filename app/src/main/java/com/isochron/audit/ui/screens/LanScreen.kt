@@ -218,10 +218,12 @@ private fun LanDeviceRow(
     }
 
     // Port scan results take priority; fall back to mDNS service ports
-    val displayPorts: List<Int> = if (portResults.isNotEmpty()) {
-        portResults.map { it.port }
-    } else {
-        device.services.map { it.port }.filter { it > 0 }
+    val displayPorts = remember(portResults, device.services) {
+        if (portResults.isNotEmpty()) {
+            portResults.map { it.port }
+        } else {
+            device.services.map { it.port }.filter { it > 0 }
+        }
     }
 
     Column {
