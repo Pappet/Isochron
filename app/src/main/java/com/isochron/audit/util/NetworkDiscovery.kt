@@ -472,7 +472,20 @@ class NetworkDiscovery(private val context: Context) {
                         ?.trim()
 
                     if (location != null && location.startsWith("http")) {
-                        locationMap.putIfAbsent(ip, location)
+                        // CRITICAL SECURITY FIX: Prevent Server-Side Request Forgery (SSRF)
+                        // A malicious device could send a LOCATION header pointing to internal
+                        // resources (e.g., http://localhost:8080 or http://169.254.169.254).
+                        // We strictly validate that the URL host matches the sender's IP.
+                        try {
+                            val parsedUrl = java.net.URL(location)
+                            if (parsedUrl.host == ip) {
+                                locationMap.putIfAbsent(ip, location)
+                            } else {
+                                Log.w("NetworkDiscovery", "SSDP SSRF attempt blocked. Expected IP $ip but got URL $location")
+                            }
+                        } catch (_: Exception) {
+                            // Invalid URL format
+                        }
                     }
                 } catch (_: java.net.SocketTimeoutException) {
                     break
