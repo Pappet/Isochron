@@ -14,6 +14,12 @@ interface DeviceDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertDevice(device: DiscoveredDeviceEntity): Long
 
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDevices(devices: List<DiscoveredDeviceEntity>): List<Long>
+
+    @Update
+    suspend fun updateDevices(devices: List<DiscoveredDeviceEntity>)
     @Update
     suspend fun updateDevice(device: DiscoveredDeviceEntity)
 
@@ -74,6 +80,46 @@ interface DeviceDao {
     @Query("SELECT * FROM discovered_devices WHERE id = :id")
     suspend fun getDeviceById(id: Long): DiscoveredDeviceEntity?
 
+    @Transaction
+    suspend fun upsertDevices(devices: List<DiscoveredDeviceEntity>): List<Long> {
+        if (devices.isEmpty()) return emptyList()
+        val now = Instant.now()
+        val addresses = devices.map { it.address }
+        val existingList = getDevicesByAddresses(addresses)
+        val existingMap = existingList.associateBy { it.address }
+
+        val toUpdate = mutableListOf<DiscoveredDeviceEntity>()
+        val toInsert = mutableListOf<DiscoveredDeviceEntity>()
+
+        for (device in devices) {
+            val existing = existingMap[device.address]
+            if (existing != null) {
+                toUpdate.add(
+                    existing.copy(
+                        name = if (device.name.isNotBlank() && !device.name.startsWith("(")) device.name else existing.name,
+                        lastSeen = now,
+                        lastSignalStrength = device.lastSignalStrength ?: existing.lastSignalStrength,
+                        timesSeen = existing.timesSeen + 1,
+                        metadata = device.metadata ?: existing.metadata
+                    )
+                )
+            } else {
+                toInsert.add(
+                    device.copy(
+                        firstSeen = now,
+                        lastSeen = now
+                    )
+                )
+            }
+        }
+
+        if (toUpdate.isNotEmpty()) updateDevices(toUpdate)
+        if (toInsert.isNotEmpty()) insertDevices(toInsert)
+
+        val finalDevices = getDevicesByAddresses(addresses)
+        val finalMap = finalDevices.associateBy { it.address }
+        return devices.mapNotNull { finalMap[it.address]?.id }
+    }
     @Query("SELECT * FROM discovered_devices WHERE id = :id")
     fun observeDeviceById(id: Long): Flow<DiscoveredDeviceEntity?>
 
@@ -106,6 +152,9 @@ interface DeviceDao {
      */
     @Query("SELECT * FROM discovered_devices WHERE address = :address LIMIT 1")
     suspend fun getDeviceByAddress(address: String): DiscoveredDeviceEntity?
+
+    @Query("SELECT * FROM discovered_devices WHERE address IN (:addresses)")
+    suspend fun getDevicesByAddresses(addresses: List<String>): List<DiscoveredDeviceEntity>
 
     @Query("SELECT * FROM discovered_devices WHERE address = :address LIMIT 1")
     fun observeDeviceByAddress(address: String): Flow<DiscoveredDeviceEntity?>

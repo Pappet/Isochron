@@ -43,8 +43,12 @@ class DeviceRepository(context: Context) {
         val readings = mutableListOf<SignalReadingEntity>()
         val now = Instant.now()
 
-        for (network in networks) {
-            val existing = dao.getDeviceByAddress(network.bssid)
+        val bssids = networks.map { it.bssid }
+        val existingList = dao.getDevicesByAddresses(bssids)
+        val existingMap = existingList.associateBy { it.address }
+
+        val devicesToUpsert = networks.map { network ->
+            val existing = existingMap[network.bssid]
             val metaJson = try {
                 existing?.metadata?.let { JSONObject(it) } ?: JSONObject()
             } catch (_: Exception) { JSONObject() }
@@ -69,14 +73,21 @@ class DeviceRepository(context: Context) {
                 }
             }
 
-            val deviceId = dao.upsertDevice(
+            DiscoveredDeviceEntity(
                 address = network.bssid,
                 name = network.ssid,
-                category = DeviceCategory.WIFI,
-                signalStrength = network.signalStrength,
+                deviceCategory = DeviceCategory.WIFI,
+                firstSeen = existing?.firstSeen ?: now,
+                lastSeen = now,
+                lastSignalStrength = network.signalStrength,
                 metadata = metaJson.toString()
             )
+        }
 
+        val deviceIds = dao.upsertDevices(devicesToUpsert)
+
+        for ((index, network) in networks.withIndex()) {
+            val deviceId = deviceIds.getOrNull(index) ?: continue
             readings.add(
                 SignalReadingEntity(
                     deviceId = deviceId,
@@ -112,7 +123,11 @@ class DeviceRepository(context: Context) {
         val readings = mutableListOf<SignalReadingEntity>()
         val now = Instant.now()
 
-        for (device in devices) {
+        val addresses = devices.map { it.address }
+        val existingList = dao.getDevicesByAddresses(addresses)
+        val existingMap = existingList.associateBy { it.address }
+
+        val devicesToUpsert = devices.map { device ->
             val category = when (device.type) {
                 DeviceType.CLASSIC -> DeviceCategory.BT_CLASSIC
                 DeviceType.BLE -> DeviceCategory.BT_BLE
@@ -120,32 +135,37 @@ class DeviceRepository(context: Context) {
                 DeviceType.UNKNOWN -> DeviceCategory.BT_BLE
             }
 
-            val existing = dao.getDeviceByAddress(device.address)
+            val existing = existingMap[device.address]
             val metaJson = try {
                 existing?.metadata?.let { JSONObject(it) } ?: JSONObject()
             } catch (_: Exception) { JSONObject() }
 
-            // Preserve existing gattData if present (avoid overwriting GATT scan results)
             val existingGattData = metaJson.opt("gattData")
 
             metaJson.apply {
                 put("deviceClass", device.deviceClass ?: "")
                 put("bondState", device.bondState.name)
                 put("isConnected", device.isConnected)
-                // Re-inject gattData so it survives BT scan upserts
                 if (existingGattData != null) {
                     put("gattData", existingGattData)
                 }
             }
 
-            val deviceId = dao.upsertDevice(
+            DiscoveredDeviceEntity(
                 address = device.address,
                 name = device.name,
-                category = category,
-                signalStrength = device.rssi,
+                deviceCategory = category,
+                firstSeen = existing?.firstSeen ?: now,
+                lastSeen = now,
+                lastSignalStrength = device.rssi,
                 metadata = metaJson.toString()
             )
+        }
 
+        val deviceIds = dao.upsertDevices(devicesToUpsert)
+
+        for ((index, device) in devices.withIndex()) {
+            val deviceId = deviceIds.getOrNull(index) ?: continue
             device.rssi?.let { rssi ->
                 readings.add(
                     SignalReadingEntity(
