@@ -75,8 +75,6 @@ class WardrivingTracker(private val context: Context) {
                     }
                     override fun onProviderEnabled(provider: String) {}
                     override fun onProviderDisabled(provider: String) {}
-                    @Deprecated("Deprecated in Java")
-                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
                 }
 
         try {
