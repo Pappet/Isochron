@@ -1,4 +1,4 @@
-## 2025-02-23 - [Critical SSRF in Network Discovery]
-**Vulnerability:** The `NetworkDiscovery` UPnP scanner blindly fetched the XML from any URL returned in the `LOCATION` header of an SSDP response.
-**Learning:** This is a Server-Side Request Forgery (SSRF). Any malicious device on the local network could have returned a response causing the app to send a GET request to an arbitrary URL (like the router admin page or loopback addresses).
-**Prevention:** Always validate URLs parsed from untrusted local network responses. Specifically for UPnP, ensure the `URL.host` strictly matches the IP address of the UDP packet sender and that the protocol is HTTP or HTTPS.
+## 2026-05-09 - Command/Argument Injection in PingUtil.kt
+**Vulnerability:** Argument injection in `Runtime.exec(String[])`. Even when using the array form of `exec`, if a user-controlled parameter is passed as a command-line argument and starts with a hyphen (e.g., `-` or `--`), it can be interpreted as an option by the target executable rather than as a positional argument (like a hostname).
+**Learning:** Shell-level command injection (using `;`, `&`, `|`) is prevented by `Runtime.exec(String[])`, but argument injection is still possible if the executable accepts flags.
+**Prevention:** Always validate and/or sanitize user input before passing it as a command-line argument. For network-related inputs like hostnames, resolving them to an IP address using `InetAddress.getByName()` is an effective way to ensure the input is a valid target and not a malicious flag.
