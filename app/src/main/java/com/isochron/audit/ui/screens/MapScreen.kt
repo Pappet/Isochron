@@ -320,7 +320,7 @@ private fun SpectrumMapView(
             factory = { ctx ->
                 Configuration.getInstance().apply {
                     userAgentValue =
-                            "Isochron/${BuildConfig.VERSION_NAME} (Android; +https://github.com/TODO_REPLACE/Isochron)"
+                            "Isochron/${BuildConfig.VERSION_NAME} (Android; +https://github.com/Pappet/Isochron)"
                     osmdroidBasePath = ctx.filesDir
                     osmdroidTileCache = ctx.filesDir.resolve("osmdroid/tiles")
                 }
