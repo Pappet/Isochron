@@ -54,8 +54,16 @@ class PingUtil(private val context: Context) {
     suspend fun ping(host: String, count: Int = 3, timeoutSec: Int = 5): PingResult =
         withContext(Dispatchers.IO) {
             try {
+                // Security: Validate and resolve host to prevent command/argument injection.
+                // This ensures 'host' is a valid IP or hostname and not a malicious argument.
+                val resolvedHost = InetAddress.getByName(host).hostAddress ?: host
+
+                // Security: Clamp parameters to reasonable ranges
+                val safeCount = count.coerceIn(1, 10)
+                val safeTimeout = timeoutSec.coerceIn(1, 30)
+
                 val process = Runtime.getRuntime().exec(
-                    arrayOf("ping", "-c", count.toString(), "-W", timeoutSec.toString(), host)
+                    arrayOf("ping", "-c", safeCount.toString(), "-W", safeTimeout.toString(), resolvedHost)
                 )
 
                 val reader = BufferedReader(InputStreamReader(process.inputStream))
