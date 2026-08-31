@@ -230,19 +230,6 @@ class DeviceRepository(context: Context) {
     suspend fun getTotalScanCount(): Int = dao.getTotalScanCount()
     suspend fun getDeviceCountByCategory(): List<CategoryCount> = dao.getDeviceCountByCategory()
 
-
-
-    /**
-     * Delete signal readings older than N days to keep the DB lean.
-     */
-    suspend fun cleanupOldReadings(keepDays: Long = 30) {
-        val cutoff = Instant.now().minus(keepDays, ChronoUnit.DAYS)
-        dao.deleteOldReadings(cutoff)
-    }
-
-    fun observeScanSessions(): Flow<List<ScanSessionEntity>> =
-        dao.observeAllSessions()
-
     /**
      * Persists results from a LAN scan (Network Discovery).
      * Enriches metadata with IP, hostnames, UPnP info, and OUI lookups.

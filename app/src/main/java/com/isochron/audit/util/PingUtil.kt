@@ -1,19 +1,15 @@
 package com.isochron.audit.util
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.net.HttpURLConnection
 import java.net.InetAddress
-import java.net.URL
 
 /**
- * Represents the result of an ICMP [PingUtil.ping] or HTTP latency check.
+ * Represents the result of an ICMP [PingUtil.ping] check.
  */
 data class PingResult(
     val host: String,
@@ -92,38 +88,6 @@ class PingUtil(private val context: Context) {
         }
 
     /**
-     * Measures HTTP ROUND-TRIP latency to a specific URL using a HEAD request.
-     * Useful for verifying internet connectivity when ICMP (ping) is blocked.
-     */
-    suspend fun httpLatency(urlString: String = "https://www.google.com"): PingResult =
-        withContext(Dispatchers.IO) {
-            try {
-                val url = URL(urlString)
-                val start = System.nanoTime()
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "HEAD"
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                conn.connect()
-                val latency = (System.nanoTime() - start) / 1_000_000f
-                conn.disconnect()
-
-                PingResult(
-                    host = url.host,
-                    latencyMs = latency,
-                    isReachable = true
-                )
-            } catch (_: Exception) {
-                PingResult(
-                    host = urlString,
-                    latencyMs = null,
-                    isReachable = false,
-                    packetLoss = 1f
-                )
-            }
-        }
-
-    /**
      * Retrieves current WiFi network details including gateway, local IP, and DNS.
      * Uses [WifiManager.getDhcpInfo] and [WifiManager.getConnectionInfo].
      */
@@ -150,22 +114,6 @@ class PingUtil(private val context: Context) {
             )
         } catch (e: Exception) {
             NetworkInfo(null, null, null, null, null, null)
-        }
-    }
-
-    /**
-     * Checks for verified internet access using [ConnectivityManager].
-     */
-    fun hasInternetConnection(): Boolean {
-        return try {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                ?: return false
-            val network = cm.activeNetwork ?: return false
-            val capabilities = cm.getNetworkCapabilities(network) ?: return false
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-        } catch (_: Exception) {
-            false
         }
     }
 

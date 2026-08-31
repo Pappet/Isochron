@@ -54,22 +54,6 @@ fun SpectrumKicker(
     )
 }
 
-// ── Section label, like "NEARBY · 12" ────────────────────────
-@Composable
-fun SpectrumSectionLabel(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    Text(
-        text = text.uppercase(),
-        modifier = modifier,
-        color = Spectrum.OnSurfaceDim,
-        fontFamily = JetBrainsMonoFamily,
-        fontSize = 10.sp,
-        letterSpacing = 0.2.em,
-    )
-}
-
 // ── Header: kicker + big display subtitle + scan button + stats ──
 data class HeaderStat(val value: String, val label: String)
 

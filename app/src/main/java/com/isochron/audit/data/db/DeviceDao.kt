@@ -159,9 +159,6 @@ interface DeviceDao {
     @Query("SELECT * FROM scan_sessions ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentSessions(limit: Int = 50): List<ScanSessionEntity>
 
-    @Query("SELECT * FROM scan_sessions ORDER BY timestamp DESC")
-    fun observeAllSessions(): Flow<List<ScanSessionEntity>>
-
     @Query("SELECT COUNT(*) FROM scan_sessions")
     suspend fun getTotalScanCount(): Int
 
@@ -191,10 +188,6 @@ interface DeviceDao {
         ORDER BY timestamp ASC
     """)
     fun getSignalHistoryRange(deviceId: Long, from: Instant, to: Instant): Flow<List<SignalOverTime>>
-
-    // Cleanup old readings (keep last N days)
-    @Query("DELETE FROM signal_readings WHERE timestamp < :before")
-    suspend fun deleteOldReadings(before: Instant)
 
     /** Returns the average last signal strength for a specific [DeviceCategory]. */
     @Query("""

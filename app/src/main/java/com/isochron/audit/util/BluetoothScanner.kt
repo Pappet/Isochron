@@ -149,11 +149,6 @@ class BluetoothScanner(private val context: Context) {
     }
 
     /**
-     * Checks if the device has a Bluetooth adapter available.
-     */
-    fun hasBluetoothSupport(): Boolean = bluetoothAdapter != null
-
-    /**
      * Retrieves a list of currently bonded (paired) devices.
      */
     fun getBondedDevices(): List<BluetoothDevice> {
