@@ -78,7 +78,9 @@ class ExportManager(private val context: Context) {
         val devices = getFilteredDevices(filter)
         val timestamp = fileNameFormatter.format(Instant.now())
         val fileName = "netzwerk_scan_$timestamp.${format.extension}"
-        val file = File(context.cacheDir, fileName)
+        val exportDir = File(context.cacheDir, "exports")
+        exportDir.mkdirs()
+        val file = File(exportDir, fileName)
 
         when (format) {
             ExportFormat.CSV -> exportCsv(file, devices)

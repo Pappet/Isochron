@@ -186,9 +186,11 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             onExport = {
                 scope.launch {
                     try {
-                        val csvFile = java.io.File(context.cacheDir, "wardriving.csv")
+                        val exportDir = java.io.File(context.cacheDir, "exports")
+                        exportDir.mkdirs()
+                        val csvFile = java.io.File(exportDir, "wardriving.csv")
                         vm.wardrivingTracker.exportWigleCsv(csvFile)
-                        val kmlFile = java.io.File(context.cacheDir, "wardriving.kml")
+                        val kmlFile = java.io.File(exportDir, "wardriving.kml")
                         vm.wardrivingTracker.exportKml(kmlFile)
                         val csvUri = androidx.core.content.FileProvider.getUriForFile(
                             context, "${context.packageName}.fileprovider", csvFile)
