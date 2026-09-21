@@ -43,6 +43,7 @@ enum class WifiSecurity {
  * Generic model for a discovered WiFi network, used by [WifiScanner].
  */
 data class WifiNetwork(
+    /** Raw SSID; blank for a hidden network — see [isHidden]. */
     val ssid: String,
     val bssid: String,
     val signalStrength: Int,       // Signal level in dBm
@@ -59,6 +60,9 @@ data class WifiNetwork(
     val channelWidth: String? = null,
     val distance: Double? = null  // Estimated distance in meters (FSPL)
 ) {
+    /** Hidden networks broadcast an empty SSID. */
+    val isHidden: Boolean get() = ssid.isBlank()
+
     /**
      * True when the network is worth flagging to the user: no encryption,
      * a broken standard, or WPS left enabled.
@@ -71,6 +75,7 @@ data class WifiNetwork(
  * Generic model for a discovered Bluetooth device (Classic or BLE).
  */
 data class BluetoothDevice(
+    /** Advertised name, or [UNKNOWN_NAME] when the device sends none — see [isUnnamed]. */
     val name: String,
     val address: String,           // MAC address
     val rssi: Int?,                // Signal level in dBm, null if not available
@@ -87,21 +92,20 @@ data class BluetoothDevice(
      * Best available display name: name > vendor > address
      */
     fun displayName(): String = when {
-        name != "(Unbekannt)" && name.isNotBlank() -> name
+        !isUnnamed -> name
         vendor != null -> vendor
         else -> address
     }
 
-    /**
-     * Subtitle info line
-     */
-    fun subtitle(): String = buildString {
-        if (name != "(Unbekannt)" && vendor != null) append(vendor)
-        if (minorClass != null) {
-            if (isNotEmpty()) append(" · ")
-            append(minorClass)
-        }
-        if (isEmpty()) append(type.displayName())
+    /** True when the device advertised no name. Compare this, never the [name] text. */
+    val isUnnamed: Boolean get() = name.isBlank() || name == UNKNOWN_NAME
+
+    companion object {
+        /**
+         * Internal marker for "no name advertised". Not for display — UI shows
+         * R.string.bt_unknown_device instead (audit E3).
+         */
+        const val UNKNOWN_NAME = "(Unbekannt)"
     }
 }
 
@@ -115,11 +119,12 @@ enum class DeviceType {
     UNKNOWN;
 
     /** Returns a localized display name for the device type. */
-    fun displayName(): String = when (this) {
-        CLASSIC -> "Classic"
-        BLE -> "BLE"
-        DUAL -> "Dual"
-        UNKNOWN -> "Unbekannt"
+    @androidx.annotation.StringRes
+    fun labelRes(): Int = when (this) {
+        CLASSIC -> com.isochron.audit.R.string.bt_type_classic
+        BLE -> com.isochron.audit.R.string.bt_type_ble
+        DUAL -> com.isochron.audit.R.string.bt_type_dual
+        UNKNOWN -> com.isochron.audit.R.string.bt_type_unknown
     }
 }
 
@@ -132,9 +137,10 @@ enum class BondState {
     NOT_BONDED;
 
     /** Returns a localized display name for the bond state. */
-    fun displayName(): String = when (this) {
-        BONDED -> "Gekoppelt"
-        BONDING -> "Kopplung..."
-        NOT_BONDED -> "Nicht gekoppelt"
+    @androidx.annotation.StringRes
+    fun labelRes(): Int = when (this) {
+        BONDED -> com.isochron.audit.R.string.bond_bonded
+        BONDING -> com.isochron.audit.R.string.bond_bonding
+        NOT_BONDED -> com.isochron.audit.R.string.bond_not_bonded
     }
 }

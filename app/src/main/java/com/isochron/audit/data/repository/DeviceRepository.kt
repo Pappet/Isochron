@@ -16,7 +16,8 @@ import java.time.temporal.ChronoUnit
  * Orchestrates metadata expansion into JSON and manages relationships between devices and scan sessions.
  */
 class DeviceRepository(context: Context) {
-    private val dao = AppDatabase.getInstance(context).deviceDao()
+    private val db = AppDatabase.getInstance(context)
+    private val dao = db.deviceDao()
 
     /**
      * Persists results from a WiFi scan.
@@ -71,7 +72,8 @@ class DeviceRepository(context: Context) {
 
             val deviceId = dao.upsertDevice(
                 address = network.bssid,
-                name = network.ssid,
+                // Hidden networks have no SSID; fall back to the BSSID so the inventory row has a name.
+                name = network.ssid.ifBlank { network.bssid },
                 category = DeviceCategory.WIFI,
                 signalStrength = network.signalStrength,
                 metadata = metaJson.toString()
@@ -347,11 +349,16 @@ class DeviceRepository(context: Context) {
             
             dao.upsertDevice(
                 address = address,
-                name = existing?.name ?: "(Unbekannt)",
+                name = existing?.name ?: com.isochron.audit.data.BluetoothDevice.UNKNOWN_NAME,
                 category = existing?.deviceCategory ?: DeviceCategory.BT_BLE,
                 signalStrength = existing?.lastSignalStrength,
                 metadata = existingMeta.toString()
             )
         } catch (_: Exception) {}
+    }
+
+    /** Wipes every table — devices, sessions, readings. There is no undo (audit G2). */
+    suspend fun deleteAllData() = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        db.clearAllTables()
     }
 }

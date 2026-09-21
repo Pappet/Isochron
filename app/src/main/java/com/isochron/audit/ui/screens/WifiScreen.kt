@@ -44,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,7 +58,7 @@ import com.isochron.audit.ui.components.BlinkingDot
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
 import com.isochron.audit.ui.components.PermissionBanner
-import com.isochron.audit.ui.components.SignalTrace
+import com.isochron.audit.ui.components.SignalLevelBar
 import com.isochron.audit.ui.components.SpectrumFilterChip
 import com.isochron.audit.ui.components.SpectrumHeader
 import com.isochron.audit.ui.components.SpectrumKicker
@@ -323,7 +322,8 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                         color = Spectrum.OnSurfaceDim,
                     )
                 }
-                SignalTrace(rssi = network.signalStrength, modifier = Modifier.fillMaxWidth().height(12.dp))
+                Spacer(Modifier.height(5.dp))
+                SignalLevelBar(rssi = network.signalStrength, modifier = Modifier.fillMaxWidth())
             }
 
             // Middle: SSID + meta
@@ -340,13 +340,11 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                             modifier = Modifier.size(12.dp)
                         )
                     }
-                    val isHidden = network.ssid.isBlank() || network.ssid == "(hidden)"
                     Text(
-                        text = if (isHidden) "(hidden)" else network.ssid,
+                        text = if (network.isHidden) stringResource(R.string.wd_hidden_network) else network.ssid,
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 15.sp,
-                        color = if (isHidden) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                        fontStyle = if (isHidden) FontStyle.Italic else FontStyle.Normal,
+                        color = if (network.isHidden) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                         letterSpacing = (-0.01).em,
                         maxLines = 1,

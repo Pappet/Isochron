@@ -71,6 +71,36 @@ the usability audit (Stufe 3)". Behoben: **D1, D2, D3, D4**.
 - **D4** alle 8–10 sp auf 11 sp (80 Stellen); Severity-Badge auf 72 dp verbreitert,
   damit „KRITISCH" einzeilig bleibt.
 
+**Stufe 4 (Struktur) ist umgesetzt** — Commit „feat: structure pass from the
+usability audit (Stufe 4)". Behoben: **B5, B6, B7, E1, E2 (Kern), E3, F1, F4, G2,
+H1, H5**; damit ist auch die Bottom-Nav-Breite aus **D2** erledigt.
+
+- **F1** Vier Ziele *Scan · Analyse · Audit · Inventar* mit Untertab-Leiste
+  (`SpectrumSubTabs`), Labels aus `strings.xml`. Die Leiste trägt rechts das
+  Zahnrad für **F4**.
+- **F4/G2** `SettingsScreen` als Overlay im Scaffold: Berechtigungen (App-Info),
+  Onboarding erneut, Standard-Intervall für den Monitor, „Alle Daten löschen"
+  mit Bestätigung (`DeviceRepository.deleteAllData()` → `clearAllTables`),
+  Version + Attribution.
+- **E2** `UiText` (Resource-ID + Argumente) für alle Befunde des
+  `SecurityAuditor`; `ChannelReason`-Enum statt Text im `ChannelAnalyzer`;
+  Severity/Category/PortRisk/DeviceType/BondState mit `labelRes`;
+  Notification-Texte aus Ressourcen. **Noch offen:** `GattExplorer`-Statusmeldungen,
+  `BleUuidDatabase`, `PortState`/`ServiceType`-Labels, `DeviceCategory.displayName()`.
+- **E3** `WifiNetwork.isHidden` (SSID bleibt roh, leer = versteckt) und
+  `BluetoothDevice.isUnnamed` mit dokumentierter Konstante `UNKNOWN_NAME`;
+  Logik vergleicht nie mehr Anzeigetext. Nebenbefund: `WifiScreen` prüfte auf
+  `"(hidden)"`, der Scanner lieferte `"(Verstecktes Netzwerk)"` — dieselbe
+  Fehlerklasse wie B1.
+- **B5** Distanzdiagramm statt Radar: kein Sweep, kein Fadenkreuz, Ringe mit
+  dBm beschriftet, Winkel aus der MAC-Adresse (stabil über Rescans), Hinweis
+  „ABSTAND = SIGNALSTÄRKE · RICHTUNG UNBEKANNT".
+- **B6** `SignalTrace` (Sinus-Dekoration) durch `SignalLevelBar` ersetzt.
+- **B7** Sparklines mit fester Y-Achse (Signal −95…−30 dBm, Latenz 0…nächste
+  Stufe aus 50/100/250/500/1000/2500 ms), Min/Max-Label, Zeitspanne.
+- **H1** Balken mindestens 28 dp, Diagramm scrollt horizontal.
+- Design-System-Regel „kein Italic" nebenbei durchgesetzt (4 Stellen).
+
 Alle übrigen Befunde sind unverändert offen.
 
 ## Bewertungsskala
@@ -268,7 +298,7 @@ freq == 2484      -> 14      // unerreichbar
 Sonderbehandlung für Kanal 14 ist toter Code, japanische APs werden falsch
 beschriftet.
 
-### B5 (P0) — Das Bluetooth-Radar suggeriert eine Richtung, die es nicht kennt
+### B5 (P0) ✅ — Das Bluetooth-Radar suggeriert eine Richtung, die es nicht kennt
 
 `BluetoothScreen.kt:315`: `val angleDeg = (i * 137.5f) % 360f` — der Winkel ist
 der **Listenindex**, multipliziert mit dem goldenen Winkel. Nur der Abstand zum
@@ -284,7 +314,7 @@ zeichnen (Kreuz und Sweep entfernen) oder explizit beschriften: „Winkel ohne
 Bedeutung — nur Entfernung". Position je Gerät über die MAC-Adresse stabil
 ableiten statt über den Index.
 
-### B6 (P1) — `SignalTrace` sieht aus wie Messdaten, ist aber Dekoration
+### B6 (P1) ✅ — `SignalTrace` sieht aus wie Messdaten, ist aber Dekoration
 
 `SpectrumComponents.kt:299-315`: `y = h/2 + sin(i * 0.9f + rssi) * amp * 0.5f`.
 Eine Sinuskurve, deren Phase aus dem RSSI-Wert stammt. In jeder WLAN-Zeile
@@ -292,7 +322,7 @@ Eine Sinuskurve, deren Phase aus dem RSSI-Wert stammt. In jeder WLAN-Zeile
 keinerlei Zeitverlauf oder Messung abbildet. In einem Analyse-Werkzeug ist das
 ein Glaubwürdigkeitsproblem.
 
-### B7 (P1) — Sparklines ohne Skala
+### B7 (P1) ✅ — Sparklines ohne Skala
 
 `MonitorScreen.kt:314-319`: Die Y-Achse wird auf `min..max` der Daten normiert,
 die gestrichelten Gitterlinien bei 0/25/50/75 % sind unbeschriftet, es gibt keine
@@ -402,7 +432,7 @@ Folgen:
   (`LanScreen.kt:249`, `InventoryScreen.kt:341`, `BluetoothScreen.kt:360`): Der
   Gerätetyp wird ausschließlich über das Icon vermittelt und geht verloren.
 
-### D2 (P0) ✅ (teilweise) — Fast alle Bedienelemente unterschreiten 48 dp
+### D2 (P0) ✅ — Fast alle Bedienelemente unterschreiten 48 dp
 
 Gemessen aus Padding + Schriftgröße; Material-3- und WCAG-2.5.5-Mindestmaß ist
 48×48 dp:
@@ -513,7 +543,7 @@ Photosensitivitätsschwelle, ist aber unnötiger Dauerverbrauch.
 
 ## E — Sprache & Konsistenz
 
-### E1 (P0) — Deutsch und Englisch mischen sich innerhalb einzelner Screens
+### E1 (P0) ✅ — Deutsch und Englisch mischen sich innerhalb einzelner Screens
 
 Die Ressourcenlage ist formal sauber — 240 Schlüssel in `values/` (Deutsch,
 Default) und exakt 240 in `values-en/`, keine Lücke in beiden Richtungen. Nur wird
@@ -542,7 +572,7 @@ Das Dokument `docs/UI_String_externalization.md` erklärt die Externalisierung a
 „Phase 4 complete!" — für diese drei Screens und die gesamte Domänenschicht trifft
 das nicht zu.
 
-### E2 (P1) — Deutsche Texte sind in der Domänenschicht fest verdrahtet
+### E2 (P1) ✅ (teilweise) — Deutsche Texte sind in der Domänenschicht fest verdrahtet
 
 Diese Strings erreichen die UI unübersetzbar und erscheinen auch auf einem
 englischsprachigen Gerät auf Deutsch:
@@ -562,7 +592,7 @@ englischsprachigen Gerät auf Deutsch:
 Der Security-Audit — das namensgebende Feature — ist damit ausschließlich auf
 Deutsch verfügbar.
 
-### E3 (P1) — Sentinel-Werte als Fachlogik
+### E3 (P1) ✅ — Sentinel-Werte als Fachlogik
 
 `"(Unbekannt)"` wird an sechs Stellen per String-Vergleich ausgewertet
 (`BluetoothScreen.kt:401,526`, `SecurityAuditor.kt:228,261`, `Models.kt:43,52`,
@@ -588,7 +618,7 @@ Kanal-Screen weiterhin „Tippe auf \"Scannen\"".
 
 ## F — Informationsarchitektur
 
-### F1 (P1) — Acht gleichrangige Tabs in der Bottom-Navigation
+### F1 (P1) ✅ — Acht gleichrangige Tabs in der Bottom-Navigation
 
 `MainActivity.kt:64-73`. Material 3 sieht für die Bottom-Navigation **3 bis 5**
 Ziele vor. Acht bedeuten: 45 dp Breite je Tab auf einem 360-dp-Gerät (siehe D2),
@@ -619,7 +649,7 @@ Die README verspricht „Export data to CSV, JSON, or formatted PDF reports".
 aus dem Inventar. Der Audit-Bericht mit Note, Befunden und Empfehlungen — also
 genau das Dokument, das man weitergeben würde — existiert nur flüchtig im Screen.
 
-### F4 (P2) — Kein Einstellungs-Screen
+### F4 (P2) ✅ — Kein Einstellungs-Screen
 
 Es gibt keinen Ort für: Berechtigungen nachträglich verwalten, Onboarding erneut
 ansehen, Sprache wählen, Standardintervall setzen, Datenbank leeren,
@@ -645,7 +675,7 @@ Undo-Snackbar. Da das Menü per Long-Press geöffnet wird (A7), ist ein
 versehentliches Auslösen realistisch — und der Eintrag mit allen Notizen, Labels
 und der Historie ist endgültig fort.
 
-### G2 (P1) — Keine Möglichkeit, alle Daten zu löschen
+### G2 (P1) ✅ — Keine Möglichkeit, alle Daten zu löschen
 
 `DeviceDao.kt` enthält genau eine Löschabfrage:
 `@Query("DELETE FROM discovered_devices WHERE id = :id")`. Es gibt kein „Alle
@@ -660,7 +690,7 @@ Datenbestand sollte ein Löschweg innerhalb der App existieren; aktuell bleibt n
 
 ## H — Layout & Robustheit
 
-### H1 (P0) — 5-GHz-Kanalbalken sind unlesbar
+### H1 (P0) ✅ — 5-GHz-Kanalbalken sind unlesbar
 
 `ChannelAnalyzer.kt:52` definiert **24** 5-GHz-Kanäle. `ChannelAnalysisScreen.kt:160-221`
 legt sie als `Row` mit je `weight(1f)` und 4 dp Abstand nebeneinander.
@@ -712,7 +742,7 @@ Konkret bricht das Bluetooth-Radar (`BluetoothScreen.kt:243-247`):
 Bildschirmbreite — also höher als der Bildschirm. Die Geräteliste darunter ist
 erst nach langem Scrollen erreichbar.
 
-### H5 (P2) — 458 Zeilen toter UI-Code
+### H5 (P2) ✅ — 458 Zeilen toter UI-Code
 
 `ui/components/DeviceCards.kt` — keines der exportierten Composables wird
 verwendet:
@@ -796,7 +826,7 @@ sorgfältig gemacht:
 16. **D3** `OnSurfaceFaint` auf ≥ 4,5:1 anheben (Vorschlag: `#718480` — 5,05:1 / 4,76:1 / 4,56:1 auf den drei Flächenfarben)
 17. **D4** Schriftuntergrenze auf 11 sp anheben
 
-### Stufe 4 — Struktur
+### Stufe 4 — Struktur — ✅ umgesetzt
 
 18. **E1/E2** Restliche Strings externalisieren, Domänenschicht entkoppeln
 19. **F1** Bottom-Navigation auf vier Ziele verdichten

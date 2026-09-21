@@ -3,12 +3,6 @@ package com.isochron.audit.ui.screens
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,7 +58,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import com.isochron.audit.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -178,8 +171,16 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
                 BtRadar(
                     devices = devices,
                     selectedAddress = vm.selectedAddress,
-                    isScanning = isScanning,
                     onSelect = { addr -> vm.selectedAddress = addr },
+                )
+                Text(
+                    stringResource(R.string.bt_radar_caption),
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 11.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    letterSpacing = 0.1.em,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 )
                 HairlineHorizontal()
             }
@@ -227,19 +228,11 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
 private fun BtRadar(
     devices: List<BluetoothDevice>,
     selectedAddress: String?,
-    isScanning: Boolean,
     onSelect: (String) -> Unit,
 ) {
-    val sweep by rememberInfiniteTransition(label = "radar-sweep").animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "sweep-angle",
-    )
-
+    // Distance diagram, not a radar: only the distance from the centre carries data
+    // (RSSI). The former sweep line and crosshair implied a bearing the phone cannot
+    // know (audit B5).
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -270,8 +263,9 @@ private fun BtRadar(
                 val radius = min(cx, cy)
                 val dash = PathEffect.dashPathEffect(floatArrayOf(4f, 6f))
 
-                // 3 dashed rings at 0.33, 0.66, 1.0
-                for (r in listOf(0.33f, 0.66f, 1.0f)) {
+                // Dashed rings at the RSSI thresholds the dots are placed by
+                // (see RING_RSSI); labelled below so the scale is readable.
+                for (r in RING_FRACTIONS) {
                     drawCircle(
                         color = Spectrum.GridLine,
                         radius = radius * r,
@@ -279,55 +273,33 @@ private fun BtRadar(
                         style = Stroke(1f, pathEffect = dash),
                     )
                 }
+            }
 
-                // Crosshair
-                drawLine(
-                    color = Spectrum.GridLine,
-                    start = Offset(0f, cy),
-                    end = Offset(size.width, cy),
-                    strokeWidth = 1f,
+            // Ring labels (dBm at each ring), drawn along the top radius
+            RING_FRACTIONS.forEachIndexed { i, r ->
+                Text(
+                    "${RING_RSSI[i]}",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 11.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = (-(r * 0.5f * side) + 8f).dp),
                 )
-                drawLine(
-                    color = Spectrum.GridLine,
-                    start = Offset(cx, 0f),
-                    end = Offset(cx, size.height),
-                    strokeWidth = 1f,
-                )
-
-                // Sweep line (with trailing fade)
-                if (isScanning || devices.isNotEmpty()) {
-                    val rad = Math.toRadians(sweep.toDouble())
-                    val endX = cx + cos(rad).toFloat() * radius
-                    val endY = cy + sin(rad).toFloat() * radius
-                    drawLine(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Spectrum.Accent, Color.Transparent),
-                            start = Offset(cx, cy),
-                            end = Offset(endX, endY),
-                        ),
-                        start = Offset(cx, cy),
-                        end = Offset(endX, endY),
-                        strokeWidth = 1.5f,
-                    )
-                }
             }
 
             // Device dots as composables for tappability
-            devices.forEachIndexed { i, d ->
-                val angleDeg = (i * 137.5f) % 360f
+            devices.forEach { d ->
+                // Angle from the address, not the list index: a device keeps its
+                // spot across rescans, so it can be followed.
+                val angleDeg = (d.address.hashCode().toUInt() % 360u).toFloat()
                 val dist = 1f - rssiPct(d.rssi ?: -95)
                 val rad = Math.toRadians(angleDeg.toDouble())
                 val dxDp = (cos(rad).toFloat() * dist * 0.42f * side).dp
                 val dyDp = (sin(rad).toFloat() * dist * 0.42f * side).dp
                 val isSel = d.address == selectedAddress
                 val bonded = d.bondState == BondState.BONDED
-                val baseColor = if (bonded) Spectrum.Accent else Spectrum.Accent2
-
-                val diff = (sweep - angleDeg + 360f) % 360f
-                val lightUpAlpha = if (diff < 45f) 1f - (diff / 45f) else 0f
-                val activeColor = androidx.compose.ui.graphics.lerp(baseColor, Color.White, lightUpAlpha)
-
-                val sizeBoost = if (diff < 45f) (lightUpAlpha * 4).dp else 0.dp
+                val activeColor = if (bonded) Spectrum.Accent else Spectrum.Accent2
                 val baseBoxSize = if (isSel) 26.dp else 22.dp
 
                 Box(
@@ -335,7 +307,7 @@ private fun BtRadar(
                         .align(Alignment.Center)
                         .offset(x = dxDp, y = dyDp)
                         .minimumInteractiveComponentSize()
-                        .size(baseBoxSize + sizeBoost)
+                        .size(baseBoxSize)
                         .clip(CircleShape)
                         .clickable(role = Role.Button) { onSelect(d.address) }
                         .semantics { contentDescription = d.name ?: d.address },
@@ -354,7 +326,7 @@ private fun BtRadar(
                     if (iconVector == Icons.Outlined.Bluetooth && !bonded) {
                         Box(
                             modifier = Modifier
-                                .size(if (isSel) 12.dp + sizeBoost else 6.dp + sizeBoost)
+                                .size(if (isSel) 12.dp else 6.dp)
                                 .clip(CircleShape)
                                 .background(activeColor),
                         )
@@ -363,7 +335,7 @@ private fun BtRadar(
                             imageVector = iconVector,
                             contentDescription = null,
                             tint = activeColor,
-                            modifier = Modifier.size(if (isSel) 18.dp + sizeBoost else 14.dp + sizeBoost)
+                            modifier = Modifier.size(if (isSel) 18.dp else 14.dp)
                         )
                     }
                 }
@@ -402,7 +374,7 @@ private fun BtSelectedPanel(
                 modifier = Modifier.size(28.dp),
             )
             Column(Modifier.weight(1f)) {
-                val isUnnamed = device.name == "(Unbekannt)" || device.name.isBlank()
+                val isUnnamed = device.isUnnamed
                 val unknownVendor = stringResource(R.string.unknown_vendor)
                 Text(
                     text = if (isUnnamed) stringResource(R.string.device_with_vendor, device.vendor ?: unknownVendor) else device.name,
@@ -411,7 +383,6 @@ private fun BtSelectedPanel(
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-0.01).em,
                     color = if (isUnnamed) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                    fontStyle = if (isUnnamed) FontStyle.Italic else FontStyle.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -419,7 +390,7 @@ private fun BtSelectedPanel(
                     buildString {
                         device.vendor?.let { append(it); append(" · ") }
                         device.minorClass?.let { append(it); append(" · ") }
-                        append(device.type.displayName())
+                        append(stringResource(device.type.labelRes()))
                     }.trimEnd(' ', '·'),
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
@@ -467,7 +438,7 @@ private fun BtSelectedPanel(
             val rows = listOf(
                 "ADDR" to device.address,
                 "RSSI" to (device.rssi?.let { "$it dBm" } ?: "—"),
-                "BOND" to device.bondState.displayName(),
+                "BOND" to stringResource(device.bondState.labelRes()),
                 "TX" to (device.txPower?.let { "$it dBm" } ?: "—"),
             )
             rows.chunked(2).forEach { pair ->
@@ -529,7 +500,7 @@ private fun InfoCell(label: String, value: String, modifier: Modifier = Modifier
 
 @Composable
 private fun BtListRow(device: BluetoothDevice, isFavorite: Boolean, onClick: () -> Unit) {
-    val isUnnamed = device.name == "(Unbekannt)" || device.name.isBlank()
+    val isUnnamed = device.isUnnamed
     Row(
         Modifier
             .fillMaxWidth()
@@ -559,13 +530,12 @@ private fun BtListRow(device: BluetoothDevice, isFavorite: Boolean, onClick: () 
                     fontFamily = InterFamily,
                     fontSize = 14.sp,
                     color = if (isUnnamed) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                    fontStyle = if (isUnnamed) FontStyle.Italic else FontStyle.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             Text(
-                "${device.address} · ${device.type.displayName()}",
+                "${device.address} · ${stringResource(device.type.labelRes())}",
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
@@ -601,6 +571,10 @@ private fun BtEmptyState(message: String) {
         )
     }
 }
+
+/** Ring radii as fractions of the diagram radius, and the RSSI each one stands for. */
+private val RING_FRACTIONS = listOf(0.33f, 0.66f, 1.0f)
+private val RING_RSSI = listOf(-52, -73, -95)
 
 private fun rssiPct(rssi: Int): Float {
     val clamped = max(-95, min(-30, rssi))

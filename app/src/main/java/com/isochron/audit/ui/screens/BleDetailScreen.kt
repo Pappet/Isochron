@@ -44,7 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.isochron.audit.R
@@ -142,7 +141,6 @@ private fun GattHeader(state: GattExplorerState, onDisconnect: () -> Unit) {
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-0.02).em,
                     color = if (nameEmpty) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                    fontStyle = if (nameEmpty) FontStyle.Italic else FontStyle.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),

@@ -216,7 +216,7 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     )
                 }
-                items(r.findings, key = { "${it.target}-${it.title}" }) { finding ->
+                items(r.findings, key = { "${it.kind}-${it.target}" }) { finding ->
                     SecFindingRow(finding = finding)
                     HairlineHorizontal()
                 }
@@ -337,7 +337,7 @@ private fun SecFindingRow(finding: SecurityFinding) {
                     .padding(vertical = 3.dp),
             ) {
                 Text(
-                    finding.severity.label.uppercase(),
+                    stringResource(finding.severity.labelRes).uppercase(),
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
                     color = color,
@@ -347,7 +347,7 @@ private fun SecFindingRow(finding: SecurityFinding) {
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    finding.title,
+                    finding.title.asString(),
                     fontSize = 14.sp,
                     color = Spectrum.OnSurface,
                     maxLines = if (expanded) Int.MAX_VALUE else 2,
@@ -363,7 +363,7 @@ private fun SecFindingRow(finding: SecurityFinding) {
                 if (expanded) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        finding.description,
+                        finding.description.asString(),
                         fontSize = 12.sp,
                         color = Spectrum.OnSurfaceDim,
                     )
@@ -381,14 +381,14 @@ private fun SecFindingRow(finding: SecurityFinding) {
                             color = Spectrum.Accent,
                         )
                         Text(
-                            finding.recommendation,
+                            finding.recommendation.asString(),
                             fontSize = 12.sp,
                             color = Spectrum.Accent,
                         )
                     }
                 } else {
                     Text(
-                        finding.description,
+                        finding.description.asString(),
                         fontSize = 12.sp,
                         color = Spectrum.OnSurfaceDim,
                         maxLines = 2,

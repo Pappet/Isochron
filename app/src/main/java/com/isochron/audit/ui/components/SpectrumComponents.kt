@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,9 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -40,7 +36,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
-import kotlin.math.sin
 
 // ── Kicker (uppercase mono label) ────────────────────────────
 @Composable
@@ -296,33 +291,29 @@ fun SpectrumBottomNav(
     }
 }
 
-// ── Oscilloscope-style RSSI trace ────────────────────────────
+// ── RSSI level bar ───────────────────────────────────────────
+/**
+ * Signal strength as a filled fraction of the -95..-30 dBm range. Replaces the
+ * former sine "trace", which looked like a measurement but was decoration (audit B6).
+ */
 @Composable
-fun SignalTrace(
+fun SignalLevelBar(
     rssi: Int,
     modifier: Modifier = Modifier,
 ) {
     val pct = ((rssi.coerceIn(-95, -30) + 95) / 65f).coerceIn(0f, 1f)
-    val color = when {
-        pct > 0.6f -> Spectrum.Accent
-        pct > 0.3f -> Spectrum.Warning
-        else -> Spectrum.Danger
-    }
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val amp = (pct * 9f).coerceAtLeast(1f)
-        val steps = 20
-        val path = Path()
-        for (i in 0..steps) {
-            val x = (i / steps.toFloat()) * w
-            val y = h / 2f + sin(i * 0.9f + rssi) * amp * 0.5f
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round),
+    val color = rssiColor(rssi)
+    Box(
+        modifier
+            .height(3.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Spectrum.GridLine),
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(pct)
+                .background(color),
         )
     }
 }

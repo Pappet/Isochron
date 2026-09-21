@@ -257,12 +257,12 @@ object WellKnownPorts {
     }
 }
 
-enum class PortRisk(val label: String, val score: Int) {
-    CRITICAL("Kritisch", 10),
-    HIGH("Hoch", 7),
-    MEDIUM("Mittel", 4),
-    LOW("Niedrig", 2),
-    INFO("Info", 0)
+enum class PortRisk(@androidx.annotation.StringRes val labelRes: Int, val score: Int) {
+    CRITICAL(com.isochron.audit.R.string.severity_critical, 10),
+    HIGH(com.isochron.audit.R.string.severity_high, 7),
+    MEDIUM(com.isochron.audit.R.string.severity_medium, 4),
+    LOW(com.isochron.audit.R.string.severity_low, 2),
+    INFO(com.isochron.audit.R.string.severity_info, 0)
 }
 
 /**

@@ -639,7 +639,7 @@ private fun LanOpenPortRow(port: PortScanResult) {
         )
         Column(Modifier.weight(1f)) {
             Text(
-                stringResource(R.string.lan_port_service, port.serviceName ?: "", WellKnownPorts.riskLevel(port.port).label),
+                stringResource(R.string.lan_port_service, port.serviceName ?: "", stringResource(WellKnownPorts.riskLevel(port.port).labelRes)),
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 11.sp,
                 color = Spectrum.OnSurface,

@@ -279,7 +279,7 @@ class WifiScanner(private val context: Context) {
                 val security = WifiCapabilities.parseSecurity(result.capabilities)
 
                 WifiNetwork(
-                    ssid = ssid.ifBlank { "(Verstecktes Netzwerk)" },
+                    ssid = ssid,
                     bssid = result.BSSID ?: return@mapNotNull null,
                     signalStrength = result.level,
                     frequency = result.frequency,
