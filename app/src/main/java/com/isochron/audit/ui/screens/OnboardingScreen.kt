@@ -60,6 +60,9 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(Manifest.permission.POST_NOTIFICATIONS)
+            // WifiScreen gates its scan on this one too; leaving it out here means the
+            // user lands on a permission banner right after granting everything.
+            list.add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
         list
     }
