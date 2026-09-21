@@ -10,7 +10,9 @@ import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +66,7 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
@@ -265,6 +268,8 @@ fun MapScreen(vm: MapViewModel = viewModel()) {
     val totalDevices = devices.size
     val pointCount = scanPoints.size
 
+    BackHandler(enabled = selectedBssid != null) { vm.selectedBssid = null }
+
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         SpectrumHeader(
                 kicker = "WARDRIVING",
@@ -319,8 +324,9 @@ private fun SpectrumMapView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 Configuration.getInstance().apply {
+                    // OSM tile policy requires an identifying UA; a placeholder gets blocked.
                     userAgentValue =
-                            "Isochron/${BuildConfig.VERSION_NAME} (Android; +https://github.com/TODO_REPLACE/Isochron)"
+                            "Isochron/${BuildConfig.VERSION_NAME} (Android; +https://github.com/Pappet/Isochron)"
                     osmdroidBasePath = ctx.filesDir
                     osmdroidTileCache = ctx.filesDir.resolve("osmdroid/tiles")
                 }
@@ -330,6 +336,14 @@ private fun SpectrumMapView(
                     controller.setZoom(17.5)
                     overlayManager.tilesOverlay.setColorFilter(DarkTilesFilter)
                     setBackgroundColor(Spectrum.Surface.toArgb())
+                    // ODbL attribution ("© OpenStreetMap contributors") — required.
+                    overlays.add(
+                            CopyrightOverlay(ctx).apply {
+                                setTextColor(Spectrum.OnSurfaceDim.toArgb())
+                                setAlignBottom(true)
+                                setAlignRight(true)
+                            }
+                    )
                 }
             },
             update = { map ->
@@ -366,7 +380,8 @@ private fun rebuildOverlays(
         selectedBssid: String?,
         onSelect: (String?) -> Unit,
 ) {
-    map.overlays.clear()
+    // Keep the attribution; only the data overlays are rebuilt.
+    map.overlays.removeAll { it !is CopyrightOverlay }
 
     scanPoints.forEach { sp ->
         val ringRadius = tickRingMeters(sp.devices.size)
@@ -541,7 +556,7 @@ private fun LegendRow(color: Color, label: String) {
                 label,
                 color = Spectrum.OnSurfaceDim,
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
         )
     }
 }
@@ -590,7 +605,7 @@ private fun MapDetailPanel(
                     stringResource(R.string.map_range_hint),
                     color = Spectrum.OnSurfaceDim,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
             )
         }
         Spacer(Modifier.height(10.dp))
@@ -600,13 +615,13 @@ private fun MapDetailPanel(
                         .background(Spectrum.SurfaceRaised)
                         .border(1.dp, Spectrum.GridLine, RoundedCornerShape(2.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
-                        .clickable { onClose() },
+                        .clickable(role = Role.Button) { onClose() },
         ) {
             Text(
                     stringResource(R.string.btn_close_upper),
                     color = Spectrum.OnSurfaceDim,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
             )
         }
     }
@@ -619,7 +634,7 @@ private fun DetailStat(label: String, value: String) {
                 label,
                 color = Spectrum.OnSurfaceDim,
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
         )
         Spacer(Modifier.height(2.dp))
         Text(

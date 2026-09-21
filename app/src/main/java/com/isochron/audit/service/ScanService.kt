@@ -1,5 +1,7 @@
 package com.isochron.audit.service
 
+import com.isochron.audit.R
+
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -103,7 +105,7 @@ class ScanService : Service() {
     fun startMonitoring(intervalSeconds: Int = 10) {
         if (monitorJob?.isActive == true) return
 
-        startForeground(NOTIFICATION_ID, buildNotification("Monitoring aktiv..."))
+        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_monitoring_active)))
 
         _state.value = _state.value.copy(
             isRunning = true,
@@ -199,13 +201,14 @@ class ScanService : Service() {
 
             // Update notification
             val notifText = buildString {
-                append(networkInfo.ssid ?: "Kein WLAN")
+                append(networkInfo.ssid ?: getString(R.string.notif_no_wifi))
                 wifiSignal?.let { append(" · $it dBm") }
                 gatewayResult?.latencyMs?.let { append(" · ${"%.0f".format(it)}ms") }
             }
             updateNotification(notifText)
         } catch (e: Exception) {
             android.util.Log.e("ScanService", "Error in monitoring cycle", e)
+            com.isochron.audit.ui.UiMessageBus.postError(com.isochron.audit.R.string.err_monitor_cycle, e)
         }
     }
 
@@ -214,10 +217,10 @@ class ScanService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Netzwerk-Monitoring",
+            getString(R.string.notif_channel_name),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Zeigt den Status des Netzwerk-Monitorings"
+            description = getString(R.string.notif_channel_desc)
             setShowBadge(false)
         }
         val manager = getSystemService(NotificationManager::class.java)
@@ -238,11 +241,11 @@ class ScanService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Isochron")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
             .setContentIntent(pendingIntent)
-            .addAction(android.R.drawable.ic_media_pause, "Stopp", stopIntent)
+            .addAction(android.R.drawable.ic_media_pause, getString(R.string.btn_stop), stopIntent)
             .setOngoing(true)
             .setSilent(true)
             .build()

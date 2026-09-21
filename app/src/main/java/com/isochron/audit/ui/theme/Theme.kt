@@ -28,7 +28,9 @@ object Spectrum {
 
     val OnSurface = Color(0xFFE8EFEC)
     val OnSurfaceDim = Color(0xFF7C8A86)
-    val OnSurfaceFaint = Color(0xFF3B4543)
+    // 5.05:1 on Surface; the old #3B4543 sat at 2.01:1 and carried real text
+    // (distances, "last seen", disabled chips) — audit D3.
+    val OnSurfaceFaint = Color(0xFF718480)
 
     val Accent = Color(0xFFC8FF4F)        // chartreuse — oscilloscope
     val AccentDim = Color(0xFF5E7A20)
@@ -85,7 +87,7 @@ private val SpectrumTypography = Typography(
     bodySmall = TextStyle(fontFamily = InterFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp),
     labelLarge = TextStyle(fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp, letterSpacing = 0.2.em),
     labelMedium = TextStyle(fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.Normal, fontSize = 11.sp, letterSpacing = 0.18.em),
-    labelSmall = TextStyle(fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.Normal, fontSize = 10.sp, letterSpacing = 0.18.em),
+    labelSmall = TextStyle(fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.Normal, fontSize = 11.sp, letterSpacing = 0.18.em),
 )
 
 private val SpectrumShapes = Shapes(

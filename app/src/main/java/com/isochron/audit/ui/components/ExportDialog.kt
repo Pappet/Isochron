@@ -3,9 +3,14 @@ package com.isochron.audit.ui.components
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +56,10 @@ fun ExportDialog(onDismiss: () -> Unit) {
     var favOnly by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
 
+    // The sheet is a plain Box, not a Dialog, so system back would otherwise fall
+    // through to the pager and leave the sheet standing.
+    BackHandler { onDismiss() }
+
     val wifiCount by repository.observeWifiCount().collectAsState(initial = 0)
     val btCount by repository.observeBluetoothCount().collectAsState(initial = 0)
     val lanCount by repository.observeDeviceCountByCategory(DeviceCategory.LAN).collectAsState(initial = 0)
@@ -95,7 +104,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
                         Text(
                             "EXPORT",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Spectrum.Accent,
                             letterSpacing = 0.2.em,
                         )
@@ -110,9 +119,10 @@ fun ExportDialog(onDismiss: () -> Unit) {
                     }
                     Box(
                         modifier = Modifier
+                            .minimumInteractiveComponentSize()
                             .size(30.dp)
                             .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-                            .clickable { onDismiss() },
+                            .clickable(role = Role.Button) { onDismiss() },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -128,7 +138,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
                 Text(
                     "FORMAT",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                     modifier = Modifier.padding(top = 16.dp),
@@ -156,7 +166,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
                 Text(
                     "INCLUDE",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                     modifier = Modifier.padding(top = 18.dp),
@@ -195,7 +205,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
                             if (favOnly) Spectrum.Accent else Spectrum.GridLine,
                             RoundedCornerShape(4.dp),
                         )
-                        .clickable { favOnly = !favOnly }
+                        .toggleable(value = favOnly, role = Role.Checkbox) { favOnly = it }
                         .padding(10.dp),
                 ) {
                     Box(
@@ -212,7 +222,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
                             Text(
                                 "✓",
                                 color = Spectrum.Accent,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 lineHeight = 14.sp,
                             )
                         }
@@ -236,7 +246,7 @@ fun ExportDialog(onDismiss: () -> Unit) {
                             if (canExport) Spectrum.Accent else Spectrum.AccentDim,
                             RoundedCornerShape(4.dp),
                         )
-                        .clickable(enabled = canExport) {
+                        .clickable(enabled = canExport, role = Role.Button) {
                             doExport(
                                 context = context,
                                 scope = scope,
@@ -299,7 +309,7 @@ private fun ExportFormatTile(
                 if (selected) Spectrum.Accent else Spectrum.GridLine,
                 RoundedCornerShape(4.dp),
             )
-            .clickable { onClick() }
+            .selectable(selected = selected, role = Role.RadioButton) { onClick() }
             .padding(horizontal = 10.dp, vertical = 12.dp),
     ) {
         Text(
@@ -311,7 +321,7 @@ private fun ExportFormatTile(
         Text(
             description,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             modifier = Modifier.padding(top = 3.dp),
         )
@@ -336,7 +346,7 @@ private fun ExportIncludeChip(
                 if (enabled) Spectrum.Accent else Spectrum.GridLine,
                 RoundedCornerShape(4.dp),
             )
-            .clickable { onClick() }
+            .toggleable(value = enabled, role = Role.Checkbox) { onClick() }
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {

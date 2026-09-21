@@ -15,6 +15,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.isochron.audit.data.WifiNetwork
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Utility class for performing WiFi scans and retrieving information about the current connection.
@@ -161,6 +165,35 @@ class WifiScanner(private val context: Context) {
     }
 
     /**
+     * Emits the adapter state whenever it changes, starting with the current value.
+     *
+     * Screens that read [isWifiEnabled] during composition only notice a toggle on the
+     * next unrelated recomposition; collecting this flow keeps a "Wi-Fi is off" banner
+     * honest.
+     */
+    fun wifiEnabledFlow(): Flow<Boolean> = callbackFlow {
+        trySend(isWifiEnabled())
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                trySend(isWifiEnabled())
+            }
+        }
+        val filter = IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+        awaitClose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: IllegalArgumentException) {
+                // Already unregistered
+            }
+        }
+    }.distinctUntilChanged()
+
+    /**
      * Unregisters any active [BroadcastReceiver] and cancels pending timeout callbacks.
      * Should be called when the scanner is no longer needed (e.g., in a Composable's onDispose).
      */
@@ -243,15 +276,18 @@ class WifiScanner(private val context: Context) {
                 val exp = (27.55 - (20 * Math.log10(result.frequency.toDouble())) + kotlin.math.abs(result.level)) / 20.0
                 val distance = Math.pow(10.0, exp)
 
+                val security = WifiCapabilities.parseSecurity(result.capabilities)
+
                 WifiNetwork(
-                    ssid = ssid.ifBlank { "(Verstecktes Netzwerk)" },
+                    ssid = ssid,
                     bssid = result.BSSID ?: return@mapNotNull null,
                     signalStrength = result.level,
                     frequency = result.frequency,
-                    channel = frequencyToChannel(result.frequency),
-                    securityType = getSecurityType(result),
+                    channel = WifiCapabilities.frequencyToChannel(result.frequency),
+                    securityType = WifiCapabilities.securityLabel(security, capabilities),
+                    security = security,
                     isConnected = result.BSSID == connectedBssid,
-                    band = if (result.frequency > 4900) "5 GHz" else "2.4 GHz",
+                    band = WifiCapabilities.frequencyToBand(result.frequency),
                     wpsEnabled = capabilities.contains("WPS", ignoreCase = true),
                     rawCapabilities = capabilities,
                     vendor = vendor,
@@ -264,37 +300,5 @@ class WifiScanner(private val context: Context) {
                 null
             }
         }.sortedByDescending { it.signalStrength }
-    }
-
-    /**
-     * Converts a frequency in MHz to its corresponding channel number.
-     * Supports 2.4 GHz (1-14) and 5 GHz bands.
-     */
-    private fun frequencyToChannel(freq: Int): Int = when {
-        freq in 2412..2484 -> (freq - 2412) / 5 + 1
-        freq in 5170..5825 -> (freq - 5170) / 5 + 34
-        freq == 2484 -> 14
-        else -> -1
-    }
-
-    /**
-     * Parses the capabilities string of a [ScanResult] into a human-readable security type.
-     */
-    private fun getSecurityType(result: ScanResult): String {
-        val capabilities = result.capabilities ?: return "Unbekannt"
-        
-        return when {
-            capabilities.contains("WPA3-Enterprise") -> "WPA3 Enterprise"
-            capabilities.contains("WPA3-Personal") || capabilities.contains("WPA3") -> "WPA3 (SAE)"
-            capabilities.contains("WPA2-Enterprise") || capabilities.contains("WPA2-EAP") -> "WPA2 Enterprise"
-            capabilities.contains("WPA2") -> {
-                val cipher = if (capabilities.contains("CCMP")) "CCMP" else if (capabilities.contains("TKIP")) "TKIP" else "PSK"
-                "WPA2 ($cipher)"
-            }
-            capabilities.contains("WPA-") || capabilities.contains("WPA]") || capabilities.contains("WPA") -> "WPA"
-            capabilities.contains("WEP") -> "WEP"
-            capabilities.contains("OWE") -> "OWE (Enhanced Open)"
-            else -> "Offen"
-        }
     }
 }

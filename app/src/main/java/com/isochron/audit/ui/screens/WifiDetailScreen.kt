@@ -24,20 +24,24 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.isochron.audit.R
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.data.WifiSecurity
 import com.isochron.audit.ui.components.rssiColor
 import com.isochron.audit.ui.theme.InterFamily
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
@@ -56,7 +60,7 @@ fun WifiDetailScreen(
     onClose: () -> Unit,
     onToggleFavorite: () -> Unit = {},
 ) {
-    val risk = network.isRiskFlagged()
+    val risk = network.isRisk()
 
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         // Top bar
@@ -68,19 +72,19 @@ fun WifiDetailScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            IconSquareButton(Icons.Outlined.Close, "Schließen", onClose)
+            IconSquareButton(Icons.Outlined.Close, stringResource(R.string.btn_close), onClose)
             Column(Modifier.weight(1f)) {
                 Text(
                     "WIFI / DETAIL",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                 )
             }
             IconSquareButton(
                 if (isFavorite) Icons.Outlined.Star else Icons.Outlined.StarOutline,
-                "Favorit",
+                stringResource(R.string.cd_favorite),
                 onToggleFavorite,
                 tint = if (isFavorite) Spectrum.Accent else Spectrum.OnSurface,
             )
@@ -90,16 +94,14 @@ fun WifiDetailScreen(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             // Hero
             Column(Modifier.fillMaxWidth().padding(22.dp)) {
-                val isHidden = network.ssid.isBlank() || network.ssid == "(hidden)"
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (isHidden) "hidden network" else network.ssid,
+                        if (network.isHidden) stringResource(R.string.wd_hidden_network) else network.ssid,
                         fontFamily = InterFamily,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = (-0.02).em,
-                        color = if (isHidden) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                        fontStyle = if (isHidden) FontStyle.Italic else FontStyle.Normal,
+                        color = if (network.isHidden) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     if (network.isConnected) {
@@ -126,9 +128,9 @@ fun WifiDetailScreen(
                             lineHeight = 56.sp,
                         )
                         Text(
-                            "dBm · SIGNAL",
+                            stringResource(R.string.wd_signal_unit),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Spectrum.OnSurfaceDim,
                             letterSpacing = 0.2.em,
                             modifier = Modifier.padding(top = 2.dp),
@@ -145,9 +147,9 @@ fun WifiDetailScreen(
             // Spec grid
             Column(Modifier.fillMaxWidth().padding(18.dp)) {
                 Text(
-                    "SPECIFICATIONS",
+                    stringResource(R.string.wd_specs),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.2.em,
                     modifier = Modifier.padding(bottom = 10.dp),
@@ -169,14 +171,14 @@ fun WifiDetailScreen(
 private fun SpecGrid(n: WifiNetwork) {
     val specs = buildList {
         add("BSSID" to n.bssid)
-        add("CHANNEL" to "${n.channel} (${n.band})")
-        add("FREQUENCY" to "${n.frequency} MHz")
-        add("WIDTH" to (n.channelWidth ?: "—"))
-        add("STANDARD" to (n.wifiStandard ?: "—"))
-        add("VENDOR" to (n.vendor ?: "—"))
-        add("SECURITY" to n.securityType)
-        add("WPS" to if (n.wpsEnabled) "⚠ ENABLED" else "OFF")
-        add("DISTANCE" to (n.distance?.let { "~${"%.1f".format(it)}m" } ?: "—"))
+        add(stringResource(R.string.wd_spec_channel) to "${n.channel} (${n.band})")
+        add(stringResource(R.string.wd_spec_frequency) to "${n.frequency} MHz")
+        add(stringResource(R.string.wd_spec_width) to (n.channelWidth ?: "—"))
+        add(stringResource(R.string.wd_spec_standard) to (n.wifiStandard ?: "—"))
+        add(stringResource(R.string.wd_spec_vendor) to (n.vendor ?: "—"))
+        add(stringResource(R.string.wd_spec_security) to n.securityType)
+        add("WPS" to if (n.wpsEnabled) stringResource(R.string.wd_wps_on) else stringResource(R.string.wd_wps_off))
+        add(stringResource(R.string.wd_spec_distance) to (n.distance?.let { "~${"%.1f".format(it)}m" } ?: "—"))
         add("CAPS" to (n.rawCapabilities.ifBlank { "—" }))
     }
 
@@ -212,7 +214,7 @@ private fun SpecCell(label: String, value: String, modifier: Modifier = Modifier
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             letterSpacing = 0.18.em,
         )
@@ -229,14 +231,11 @@ private fun SpecCell(label: String, value: String, modifier: Modifier = Modifier
 
 @Composable
 private fun RiskPanel(n: WifiNetwork) {
-    val sec = n.securityType
     val message = when {
-        sec.equals("Open", ignoreCase = true) ->
-            "Open network — no encryption. Anyone can read traffic in transit."
-        sec.contains("WEP", ignoreCase = true) ->
-            "WEP encryption is broken — can be cracked in minutes with airodump."
-        n.wpsEnabled ->
-            "WPS is enabled — vulnerable to Pixie-Dust attack."
+        n.security.isUnencrypted -> stringResource(R.string.wd_risk_open)
+        n.security == WifiSecurity.WEP -> stringResource(R.string.wd_risk_wep)
+        n.security == WifiSecurity.WPA -> stringResource(R.string.wd_risk_wpa)
+        n.wpsEnabled -> stringResource(R.string.wd_risk_wps)
         else -> return
     }
 
@@ -251,7 +250,7 @@ private fun RiskPanel(n: WifiNetwork) {
         Text(
             "⚠ RISK FLAG",
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.Danger,
             letterSpacing = 0.2.em,
         )
@@ -311,10 +310,11 @@ private fun IconSquareButton(
 ) {
     Box(
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .size(30.dp)
             .clip(RoundedCornerShape(4.dp))
             .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-            .clickable { onClick() },
+            .clickable(role = Role.Button) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(14.dp))
@@ -326,7 +326,3 @@ private fun HairlineRow() {
     Box(Modifier.fillMaxWidth().height(1.dp).background(Spectrum.GridLine))
 }
 
-private fun WifiNetwork.isRiskFlagged(): Boolean =
-    securityType.equals("Open", ignoreCase = true) ||
-            securityType.contains("WEP", ignoreCase = true) ||
-            wpsEnabled

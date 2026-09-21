@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,9 +28,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.isochron.audit.R
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
+import com.isochron.audit.ui.components.PermissionBanner
+import com.isochron.audit.ui.components.WifiDisabledBanner
+import com.isochron.audit.ui.components.rememberScanPermissions
 import com.isochron.audit.ui.components.SpectrumFilterChip
 import com.isochron.audit.ui.components.SpectrumHeader
 import com.isochron.audit.ui.components.utilColor
@@ -38,7 +46,11 @@ import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
 import com.isochron.audit.util.ChannelAnalysis
 import com.isochron.audit.util.ChannelAnalyzer
+import com.isochron.audit.util.ChannelReason
 import com.isochron.audit.util.WifiScanner
+
+/** Narrowest bar that still fits a three-digit channel number in 11 sp mono. */
+private val MIN_BAR_WIDTH = 28.dp
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -56,16 +68,8 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
-
-    fun doScan() {
-        if (!vm.wifiScanner.isWifiEnabled()) return
-        if (!permissionState.allPermissionsGranted) {
-            permissionState.launchMultiplePermissionRequest()
-            return
-        }
-        vm.doScan()
-    }
+    val scanPermissions = rememberScanPermissions(permissions) { vm.doScan() }
+    val wifiEnabled by vm.wifiEnabled.collectAsState()
 
     val channels = if (selectedBand == "2.4") analysis?.channels24 else analysis?.channels5
     val recommendations = if (selectedBand == "2.4") analysis?.recommendations24 else analysis?.recommendations5
@@ -77,15 +81,21 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
     Column(modifier = Modifier.fillMaxSize().background(Spectrum.Surface).verticalScroll(rememberScrollState())) {
         SpectrumHeader(
             kicker = "SPECTRUM",
-            subtitle = "Channel Analysis",
+            subtitle = stringResource(R.string.ch_subtitle),
             scanning = isScanning,
-            onScan = { doScan() },
+            onScan = { scanPermissions.runOrRequest { vm.doScan() } },
             stats = listOf(
-                HeaderStat(value = "CH$bestCh", label = "recommended"),
-                HeaderStat(value = "$bestUtil%", label = "utilization"),
-                HeaderStat(value = "${channels?.size ?: 0}", label = "channels")
+                HeaderStat(value = "CH$bestCh", label = stringResource(R.string.ch_stat_recommended)),
+                HeaderStat(value = "$bestUtil%", label = stringResource(R.string.ch_stat_utilization)),
+                HeaderStat(value = "${channels?.size ?: 0}", label = stringResource(R.string.ch_stat_channels))
             )
         )
+
+        PermissionBanner(
+            permissions = scanPermissions,
+            text = stringResource(R.string.perm_required_channel),
+        )
+        if (!wifiEnabled) WifiDisabledBanner()
 
         Row(
             modifier = Modifier
@@ -94,13 +104,13 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             SpectrumFilterChip(
-                label = "2.4 GHZ BAND",
+                label = stringResource(R.string.ch_band_24),
                 selected = selectedBand == "2.4",
                 onClick = { vm.selectedBand = "2.4" },
                 modifier = Modifier.weight(1f)
             )
             SpectrumFilterChip(
-                label = "5 GHZ BAND",
+                label = stringResource(R.string.ch_band_5),
                 selected = selectedBand == "5",
                 onClick = { vm.selectedBand = "5" },
                 modifier = Modifier.weight(1f)
@@ -112,16 +122,18 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
         if (channels != null && channels.isNotEmpty()) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Text(
-                    text = "UTILIZATION // DB/CH",
+                    text = stringResource(R.string.ch_chart_title),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.sp,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
 
-                // Oscilloscope Grid
-                Box(
+                // Oscilloscope Grid. Bars get at least MIN_BAR_WIDTH and the chart
+                // scrolls sideways when they do not fit — 24 five-GHz channels used
+                // to squeeze into 8.5 dp each (audit H1).
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Spectrum.SurfaceRaised, RoundedCornerShape(6.dp))
@@ -129,7 +141,12 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                         .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 10.dp)
                 ) {
                     val density = LocalDensity.current.density
-                    Canvas(modifier = Modifier.matchParentSize()) {
+                    val gap = 4.dp
+                    val fitWidth = (maxWidth - gap * (channels.size - 1)) / channels.size
+                    val barWidth = if (fitWidth > MIN_BAR_WIDTH) fitWidth else MIN_BAR_WIDTH
+                    val chartScroll = rememberScrollState()
+                    val chartDescription = stringResource(R.string.cd_channel_chart, selectedBand, bestCh, bestUtil)
+                    Canvas(modifier = Modifier.matchParentSize().semantics { contentDescription = chartDescription }) {
                         // Background grid lines
                         val stepX = size.width / 10
                         val stepY = size.height / 4
@@ -151,10 +168,10 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                         }
                     }
 
-                    Column {
+                    Column(Modifier.horizontalScroll(chartScroll)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().height(160.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.height(160.dp),
+                            horizontalArrangement = Arrangement.spacedBy(gap),
                             verticalAlignment = Alignment.Bottom
                         ) {
                             channels.forEach { ch ->
@@ -164,14 +181,14 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                                 val hDp = (hFraction * 150).coerceAtLeast(0f).dp
 
                                 Column(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.width(barWidth),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Bottom
                                 ) {
                                     Text(
                                         text = "$util",
                                         fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 9.sp,
+                                        fontSize = 11.sp,
                                         color = tone,
                                         modifier = Modifier.padding(bottom = 3.dp)
                                     )
@@ -194,7 +211,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                                                 Text(
                                                     text = "${ch.networkCount}",
                                                     fontFamily = JetBrainsMonoFamily,
-                                                    fontSize = 9.sp,
+                                                    fontSize = 11.sp,
                                                     color = tone
                                                 )
                                             }
@@ -206,16 +223,16 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
 
                         // Channel labels
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(gap)
                         ) {
                             channels.forEach { ch ->
                                 Text(
                                     text = "${ch.channel}",
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.width(barWidth),
                                     textAlign = TextAlign.Center,
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = if (ch.channel == bestCh) Spectrum.Accent else Spectrum.OnSurfaceDim
                                 )
                             }
@@ -244,9 +261,9 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                     ) {
                         Column {
                             Text(
-                                text = "RECOMMENDED",
+                                text = stringResource(R.string.ch_recommended),
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 color = Spectrum.Accent,
                                 letterSpacing = 0.2.sp
                             )
@@ -265,13 +282,18 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                                 )
                                 Column {
                                     Text(
-                                        text = "Lowest utilization on band",
+                                        text = stringResource(R.string.ch_rec_title),
                                         fontFamily = InterFamily,
                                         fontSize = 13.sp,
                                         color = Spectrum.OnSurface
                                     )
                                     Text(
-                                        text = "$bestUtil% occupied · $count AP${if (count == 1) "" else "s"} · ${if (count == 0) "no overlap" else bestRec.reason}",
+                                        text = stringResource(
+                                            R.string.ch_rec_detail,
+                                            bestUtil,
+                                            pluralStringResource(R.plurals.ch_rec_aps, count, count),
+                                            channelReasonText(bestRec.reason, count, bestChInfo?.strongestSignal),
+                                        ),
                                         fontFamily = JetBrainsMonoFamily,
                                         fontSize = 11.sp,
                                         color = Spectrum.OnSurfaceDim,
@@ -290,15 +312,15 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(10.dp).background(Spectrum.Accent))
-                        Text(text = "CLEAR", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+                        Text(text = stringResource(R.string.ch_legend_clear), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(10.dp).background(Spectrum.Warning))
-                        Text(text = "MED", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+                        Text(text = stringResource(R.string.ch_legend_med), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(10.dp).background(Spectrum.Danger))
-                        Text(text = "CONGESTED", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+                        Text(text = stringResource(R.string.ch_legend_congested), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
                     }
                 }
                 
@@ -320,7 +342,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
                     Text(
-                        text = "Tippe auf \"Scannen\" für die\nWLAN-Kanalanalyse.",
+                        text = stringResource(R.string.ch_empty_hint),
                         fontFamily = InterFamily,
                         fontSize = 14.sp,
                         color = Spectrum.OnSurfaceDim,
@@ -330,4 +352,13 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
             }
         }
     }
+}
+
+@Composable
+private fun channelReasonText(reason: ChannelReason, count: Int, strongestSignal: Int?): String = when (reason) {
+    ChannelReason.FREE -> stringResource(R.string.ch_reason_free)
+    ChannelReason.ONE_WEAK -> stringResource(R.string.ch_reason_one_weak, strongestSignal ?: 0)
+    ChannelReason.LOW -> stringResource(R.string.ch_reason_low, count)
+    ChannelReason.MODERATE -> stringResource(R.string.ch_reason_moderate, count)
+    ChannelReason.HIGH -> stringResource(R.string.ch_reason_high, count)
 }

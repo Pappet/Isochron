@@ -30,6 +30,8 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.isochron.audit.R
@@ -128,7 +129,7 @@ private fun GattHeader(state: GattExplorerState, onDisconnect: () -> Unit) {
                 Text(
                     "BT / GATT",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                 )
@@ -140,7 +141,6 @@ private fun GattHeader(state: GattExplorerState, onDisconnect: () -> Unit) {
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-0.02).em,
                     color = if (nameEmpty) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                    fontStyle = if (nameEmpty) FontStyle.Italic else FontStyle.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
@@ -229,7 +229,7 @@ private fun LinkBadge(conn: ConnectionState) {
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = color,
             letterSpacing = 0.14.em,
         )
@@ -339,7 +339,7 @@ private fun ServiceAccordion(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggle)
+                .clickable(role = Role.Button, onClick = onToggle)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -363,7 +363,7 @@ private fun ServiceAccordion(
                 Text(
                     stringResource(R.string.kicker_chars, svc.category.label.uppercase(), svc.characteristics.size),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.12.em,
                     modifier = Modifier.padding(top = 2.dp),
@@ -399,7 +399,7 @@ private fun CharacteristicRow(char: GattCharacteristicInfo, onClick: () -> Unit)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(start = 34.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -407,7 +407,7 @@ private fun CharacteristicRow(char: GattCharacteristicInfo, onClick: () -> Unit)
         Text(
             BleUuidDatabase.formatUuid(char.uuid),
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             modifier = Modifier.width(72.dp),
         )
@@ -429,7 +429,7 @@ private fun CharacteristicRow(char: GattCharacteristicInfo, onClick: () -> Unit)
                 Text(
                     preview,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -464,7 +464,7 @@ private fun PropertyChip(label: String) {
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             letterSpacing = 0.05.em,
         )
@@ -491,7 +491,7 @@ private fun CharacteristicSheet(
             Text(
                 "CHARACTERISTIC",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.Accent,
                 letterSpacing = 0.2.em,
                 modifier = Modifier.weight(1f),
@@ -499,7 +499,7 @@ private fun CharacteristicSheet(
             Box(
                 modifier = Modifier
                     .size(24.dp)
-                    .clickable(onClick = onClose),
+                    .clickable(role = Role.Button, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -553,7 +553,7 @@ private fun CharacteristicSheet(
             Text(
                 stringResource(R.string.kicker_descriptors, char.descriptors.size),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
                 letterSpacing = 0.2.em,
                 modifier = Modifier.padding(top = 12.dp),
@@ -566,7 +566,7 @@ private fun CharacteristicSheet(
                     Text(
                         BleUuidDatabase.formatUuid(d.uuid),
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceDim,
                     )
                     Text(
@@ -589,10 +589,11 @@ private fun IconSquareButton(
 ) {
     Box(
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .size(30.dp)
             .clip(RoundedCornerShape(4.dp))
             .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

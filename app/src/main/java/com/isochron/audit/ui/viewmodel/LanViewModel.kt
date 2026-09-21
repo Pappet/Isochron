@@ -6,7 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.isochron.audit.R
 import com.isochron.audit.data.repository.DeviceRepository
+import com.isochron.audit.ui.UiMessageBus
 import com.isochron.audit.util.LanDevice
 import com.isochron.audit.util.LanScanProgress
 import com.isochron.audit.util.NetworkDiscovery
@@ -15,6 +17,8 @@ import com.isochron.audit.util.PingUtil
 import com.isochron.audit.util.PortScanProgress
 import com.isochron.audit.util.PortScanResult
 import com.isochron.audit.util.PortScanner
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class LanViewModel(app: Application) : AndroidViewModel(app) {
@@ -41,13 +45,18 @@ class LanViewModel(app: Application) : AndroidViewModel(app) {
     var portScanProgress by mutableStateOf<PortScanProgress?>(null)
         private set
 
+    // Kept so the user can abort: a full sweep plus a 65k-port scan used to run to
+    // completion no matter what (audit A4).
+    private var scanJob: Job? = null
+    private var portScanJob: Job? = null
+
     fun scan() {
         if (isScanning) return
         isScanning = true
         try { networkInfo = pingUtil.getNetworkInfo() } catch (e: Exception) {
             android.util.Log.e("LanViewModel", "Error getting network info", e)
         }
-        viewModelScope.launch {
+        scanJob = viewModelScope.launch {
             try {
                 val result = discovery.fullScan(
                     onProgress = { progress = it },
@@ -56,20 +65,36 @@ class LanViewModel(app: Application) : AndroidViewModel(app) {
                 devices = result
                 try { repository.persistLanScan(result) } catch (e: Exception) {
                     android.util.Log.e("LanViewModel", "Error persisting LAN scan", e)
+                    UiMessageBus.post(R.string.err_persist)
                 }
+            } catch (e: CancellationException) {
+                UiMessageBus.post(R.string.lan_scan_cancelled)
             } catch (e: Exception) {
                 android.util.Log.e("LanViewModel", "Error in LAN scan", e)
+                UiMessageBus.postError(R.string.err_lan_scan, e)
             } finally {
+                discovery.stopScan()
                 isScanning = false
                 hasScanned = true
                 progress = null
+                scanJob = null
             }
         }
     }
 
+    fun cancelScan() {
+        scanJob?.cancel()
+    }
+
+    /**
+     * Only one port scan at a time. A second call while one runs used to start a
+     * parallel coroutine whose result later overwrote the map unannounced (audit A5);
+     * the UI now disables the chips, and this guard covers any remaining path.
+     */
     fun startPortScan(ip: String, ports: List<Int>) {
+        if (portScanningIp != null) return
         portScanningIp = ip
-        viewModelScope.launch {
+        portScanJob = viewModelScope.launch {
             try {
                 val results = portScanner.scan(
                     ip = ip,
@@ -78,13 +103,25 @@ class LanViewModel(app: Application) : AndroidViewModel(app) {
                     onProgress = { portScanProgress = it },
                 )
                 portScanResults = portScanResults + (ip to results)
-                try { repository.persistPortScanResults(ip, results) } catch (_: Exception) {}
+                try { repository.persistPortScanResults(ip, results) } catch (e: Exception) {
+                    android.util.Log.e("LanViewModel", "Error persisting port scan", e)
+                    UiMessageBus.post(R.string.err_persist)
+                }
+            } catch (e: CancellationException) {
+                UiMessageBus.post(R.string.lan_scan_cancelled)
             } catch (e: Exception) {
                 android.util.Log.e("LanViewModel", "Port scan error", e)
+                UiMessageBus.postError(R.string.err_port_scan, e)
+            } finally {
+                portScanningIp = null
+                portScanProgress = null
+                portScanJob = null
             }
-            portScanningIp = null
-            portScanProgress = null
         }
+    }
+
+    fun cancelPortScan() {
+        portScanJob?.cancel()
     }
 
     fun toggleFavorite(address: String) {

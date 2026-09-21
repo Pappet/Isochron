@@ -19,10 +19,27 @@ data class ChannelInfo(
 /**
  * Recommendation for the best channel to use in a given band.
  */
+/**
+ * Why a channel is recommended. The UI maps this to a localized sentence; the
+ * analyzer itself stays free of display text (audit E2).
+ */
+enum class ChannelReason {
+    /** No network on this channel. */
+    FREE,
+    /** A single network, and a weak one. */
+    ONE_WEAK,
+    /** Up to two networks. */
+    LOW,
+    /** Three to five networks. */
+    MODERATE,
+    /** More than five networks. */
+    HIGH,
+}
+
 data class ChannelRecommendation(
     val channel: Int,
     val band: String,
-    val reason: String,         // Human-readable explanation for the recommendation
+    val reason: ChannelReason,
     val score: Float            // Fitness score: 0.0 (worst/congested) to 1.0 (optimal)
 )
 
@@ -139,12 +156,11 @@ object ChannelAnalyzer {
             .map { ch ->
                 val score = 1f - ch.overlapScore
                 val reason = when {
-                    ch.networkCount == 0 -> "Frei — kein Netzwerk auf diesem Kanal"
-                    ch.networkCount == 1 && (ch.strongestSignal ?: -100) < -75 ->
-                        "Nur 1 schwaches Netzwerk (${ch.strongestSignal} dBm)"
-                    ch.networkCount <= 2 -> "${ch.networkCount} Netzwerke, geringe Auslastung"
-                    ch.networkCount <= 5 -> "${ch.networkCount} Netzwerke, moderate Auslastung"
-                    else -> "${ch.networkCount} Netzwerke, stark ausgelastet"
+                    ch.networkCount == 0 -> ChannelReason.FREE
+                    ch.networkCount == 1 && (ch.strongestSignal ?: -100) < -75 -> ChannelReason.ONE_WEAK
+                    ch.networkCount <= 2 -> ChannelReason.LOW
+                    ch.networkCount <= 5 -> ChannelReason.MODERATE
+                    else -> ChannelReason.HIGH
                 }
                 ChannelRecommendation(
                     channel = ch.channel,

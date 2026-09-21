@@ -1,9 +1,11 @@
 package com.isochron.audit.ui.screens
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.IBinder
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,6 +29,13 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.isochron.audit.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -40,6 +49,7 @@ import com.isochron.audit.ui.viewmodel.MonitorViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.Instant
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
     val context = LocalContext.current
@@ -70,6 +80,30 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
 
     val selectedInterval = vm.selectedInterval
 
+    fun startMonitoring() {
+        val srv = service
+        if (srv != null) {
+            srv.startMonitoring(selectedInterval)
+        } else {
+            context.startForegroundService(
+                Intent(context, ScanService::class.java).apply {
+                    action = ScanService.ACTION_START
+                    putExtra(ScanService.EXTRA_INTERVAL, selectedInterval)
+                }
+            )
+        }
+    }
+
+    // Without POST_NOTIFICATIONS (Android 13+) the foreground service runs invisibly:
+    // no status, no stop button. Gate the start on it (audit C6). Older releases need
+    // nothing, so the list is empty and the state reports "all granted".
+    val notificationPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        listOf(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        emptyList()
+    }
+    val notifPermissions = rememberScanPermissions(notificationPermissions) { startMonitoring() }
+
     fun toggle() {
         if (state.isRunning) {
             service?.stopMonitoring() ?: run {
@@ -78,24 +112,14 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
                 )
             }
         } else {
-            val srv = service
-            if (srv != null) {
-                srv.startMonitoring(selectedInterval)
-            } else {
-                context.startForegroundService(
-                    Intent(context, ScanService::class.java).apply {
-                        action = ScanService.ACTION_START
-                        putExtra(ScanService.EXTRA_INTERVAL, selectedInterval)
-                    }
-                )
-            }
+            notifPermissions.runOrRequest { startMonitoring() }
         }
     }
 
     val headerStats = listOf(
-        HeaderStat("${state.intervalSeconds}s", "interval"),
-        HeaderStat("${state.wifiSignalHistory.size}×", "samples"),
-        HeaderStat(if (state.isRunning) "FG" else "OFF", "service"),
+        HeaderStat("${state.intervalSeconds}s", stringResource(R.string.mon_stat_interval)),
+        HeaderStat("${state.wifiSignalHistory.size}×", stringResource(R.string.mon_stat_samples)),
+        HeaderStat(if (state.isRunning) "FG" else "OFF", stringResource(R.string.mon_stat_service)),
     )
 
     Column(
@@ -106,9 +130,15 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
     ) {
         SpectrumHeader(
             kicker = "MON",
-            subtitle = "Live",
+            subtitle = stringResource(R.string.mon_subtitle),
             stats = headerStats,
             trailing = { MonStartStopPill(running = state.isRunning, onClick = { toggle() }) },
+        )
+
+        PermissionBanner(
+            permissions = notifPermissions,
+            text = stringResource(R.string.perm_required_notif),
+            color = Spectrum.Warning,
         )
 
         if (!state.isRunning) {
@@ -134,31 +164,38 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
 
         val metrics = listOf(
             MonMetric(
-                label = "SIGNAL",
+                label = stringResource(R.string.mon_metric_signal),
                 unit = "dBm",
                 values = signalValues,
                 color = Spectrum.Accent,
                 currentStr = state.currentSignal?.toString() ?: signalValues.lastOrNull()?.let { "%.0f".format(it) } ?: "—",
+                axisMin = -95f,
+                axisMax = -30f,
             ),
             MonMetric(
-                label = "GATEWAY LATENCY",
+                label = stringResource(R.string.mon_metric_gateway),
                 unit = "ms",
                 values = gatewayValues,
                 color = Spectrum.Accent2,
                 currentStr = gatewayValues.lastOrNull()?.let { "%.1f".format(it) } ?: "—",
+                axisMin = 0f,
+                axisMax = niceLatencyCeiling(gatewayValues),
             ),
             MonMetric(
-                label = "INTERNET (8.8.8.8)",
+                label = stringResource(R.string.mon_metric_internet),
                 unit = "ms",
                 values = internetValues,
                 color = Spectrum.Warning,
                 currentStr = internetValues.lastOrNull()?.let { "%.0f".format(it) } ?: "—",
+                axisMin = 0f,
+                axisMax = niceLatencyCeiling(internetValues),
             ),
         )
 
         metrics.forEach { m ->
             MonMetricCard(
                 metric = m,
+                intervalSeconds = state.intervalSeconds,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
@@ -178,18 +215,18 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
                     .padding(14.dp),
             ) {
                 Column {
-                    SpectrumKicker("SITZUNG")
+                    SpectrumKicker(stringResource(R.string.mon_session))
                     Spacer(Modifier.height(8.dp))
-                    MonStatRow("Scans", "${state.scanCount}")
-                    MonStatRow("Neue Geräte", "${state.newDeviceCount}")
+                    MonStatRow(stringResource(R.string.mon_session_scans), "${state.scanCount}")
+                    MonStatRow(stringResource(R.string.mon_session_new_devices), "${state.newDeviceCount}")
                     signalValues.takeIf { it.isNotEmpty() }?.average()?.let {
-                        MonStatRow("Ø Signal", "${"%.0f".format(it)} dBm")
+                        MonStatRow(stringResource(R.string.mon_session_avg_signal), "${"%.0f".format(it)} dBm")
                     }
                     gatewayValues.takeIf { it.isNotEmpty() }?.average()?.let {
-                        MonStatRow("Ø Gateway", "${"%.1f".format(it)} ms")
+                        MonStatRow(stringResource(R.string.mon_session_avg_gateway), "${"%.1f".format(it)} ms")
                     }
                     internetValues.takeIf { it.isNotEmpty() }?.average()?.let {
-                        MonStatRow("Ø Internet", "${"%.1f".format(it)} ms")
+                        MonStatRow(stringResource(R.string.mon_session_avg_internet), "${"%.1f".format(it)} ms")
                     }
                 }
             }
@@ -206,10 +243,19 @@ private data class MonMetric(
     val values: List<Float>,
     val color: Color,
     val currentStr: String,
+    /** Fixed y-axis so 11→13 ms and 10→800 ms no longer draw the same mountain (audit B7). */
+    val axisMin: Float,
+    val axisMax: Float,
 )
 
+/** Smallest of 50/100/250/500/1000/2500 ms that still contains every sample. */
+private fun niceLatencyCeiling(values: List<Float>): Float {
+    val peak = values.maxOrNull() ?: 0f
+    return listOf(50f, 100f, 250f, 500f, 1000f, 2500f).firstOrNull { it >= peak } ?: 5000f
+}
+
 @Composable
-private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
+private fun MonMetricCard(metric: MonMetric, intervalSeconds: Int, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .border(1.dp, Spectrum.GridLine, RoundedCornerShape(6.dp))
@@ -226,7 +272,7 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
                 Text(
                     metric.label,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                 )
@@ -252,13 +298,32 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
 
             Spacer(Modifier.height(6.dp))
 
-            MonSparkline(
-                values = metric.values,
-                color = metric.color,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Y-axis: the two bounds of the fixed range
+                Column(
+                    Modifier.height(60.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    Text("%.0f".format(metric.axisMax), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
+                    Text("%.0f".format(metric.axisMin), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
+                }
+                Spacer(Modifier.width(6.dp))
+                MonSparkline(
+                    values = metric.values,
+                    color = metric.color,
+                    axisMin = metric.axisMin,
+                    axisMax = metric.axisMax,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp)
+                        // The numbers above are the readable form; the curve itself only
+                        // needs a name so TalkBack does not skip the chart silently.
+                        .semantics {
+                            contentDescription = "${metric.label}: ${metric.values.size} Messwerte, aktuell ${metric.currentStr} ${metric.unit}"
+                        },
+                )
+            }
 
             Spacer(Modifier.height(4.dp))
 
@@ -268,15 +333,16 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
             ) {
                 val avg = metric.values.takeIf { it.isNotEmpty() }?.average()
                 Text(
-                    text = avg?.let { "AVG ${"%.1f".format(it)}${metric.unit}" } ?: "AVG —",
+                    text = avg?.let { stringResource(R.string.mon_avg, "%.1f".format(it), metric.unit) } ?: stringResource(R.string.mon_avg_none),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                 )
+                // X-axis: how much wall-clock time the curve spans
                 Text(
-                    "n=${metric.values.size}",
+                    stringResource(R.string.mon_span, metric.values.size, metric.values.size * intervalSeconds),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                 )
             }
@@ -288,6 +354,8 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
 private fun MonSparkline(
     values: List<Float>,
     color: Color,
+    axisMin: Float,
+    axisMax: Float,
     modifier: Modifier = Modifier,
 ) {
     val gridColor = Spectrum.GridLine
@@ -311,12 +379,10 @@ private fun MonSparkline(
 
         if (values.size < 2) return@Canvas
 
-        val minV = values.minOrNull()!!
-        val maxV = values.maxOrNull()!!
-        val range = (maxV - minV).coerceAtLeast(0.001f)
+        val range = (axisMax - axisMin).coerceAtLeast(0.001f)
 
         fun xAt(i: Int) = (i.toFloat() / (values.size - 1)) * w
-        fun yAt(v: Float) = h - ((v - minV) / range) * h
+        fun yAt(v: Float) = h - ((v.coerceIn(axisMin, axisMax) - axisMin) / range) * h
 
         // Fill path
         val fillPath = Path().apply {
@@ -356,15 +422,16 @@ private fun MonStartStopPill(running: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .clip(shape)
             .background(bg)
             .border(1.dp, border, shape)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
         if (running) BlinkingDot(color = fg, blink = true, size = 6.dp)
         Text(
-            if (running) "STOPP" else "START",
+            (if (running) stringResource(R.string.btn_stop) else stringResource(R.string.btn_start)).uppercase(),
             fontFamily = JetBrainsMonoFamily,
             fontSize = 11.sp,
             color = fg,
@@ -380,10 +447,15 @@ private fun MonIntervalRow(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        SpectrumKicker("SCAN-INTERVALL")
+        SpectrumKicker(stringResource(R.string.mon_interval))
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(5 to "5 SEK", 10 to "10 SEK", 30 to "30 SEK", 60 to "1 MIN").forEach { (s, label) ->
+            listOf(
+                5 to stringResource(R.string.mon_interval_5s),
+                10 to stringResource(R.string.mon_interval_10s),
+                30 to stringResource(R.string.mon_interval_30s),
+                60 to stringResource(R.string.mon_interval_1m),
+            ).forEach { (s, label) ->
                 SpectrumFilterChip(
                     label = label,
                     selected = selected == s,

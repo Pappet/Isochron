@@ -157,7 +157,7 @@ class BluetoothScanner(private val context: Context) {
                 try {
                     val address = device.address ?: return@mapNotNull null
                     BluetoothDevice(
-                        name = device.getAliasOrName(TAG) ?: "(Unbekannt)",
+                        name = device.getAliasOrName(TAG) ?: BluetoothDevice.UNKNOWN_NAME,
                         address = address,
                         rssi = null,
                         type = mapDeviceType(device.type),
@@ -217,8 +217,8 @@ class BluetoothScanner(private val context: Context) {
 
         val bestName = when {
             name != null && name.isNotBlank() -> name
-            existing?.name != null && existing.name != "(Unbekannt)" -> existing.name
-            else -> "(Unbekannt)"
+            existing != null && !existing.isUnnamed -> existing.name
+            else -> BluetoothDevice.UNKNOWN_NAME
         }
 
         discoveredDevices[address] = BluetoothDevice(

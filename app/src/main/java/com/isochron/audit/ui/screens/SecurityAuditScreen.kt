@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.isochron.audit.ui.viewmodel.SecurityAuditViewModel
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.isochron.audit.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.isochron.audit.data.BluetoothDevice
 import com.isochron.audit.data.WifiNetwork
 import com.isochron.audit.ui.components.*
@@ -75,15 +77,10 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
             add(Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
+    val scanPermissions = rememberScanPermissions(permissions) { vm.runAudit() }
+    val wifiEnabled by vm.wifiEnabled.collectAsState()
 
-    fun runAudit() {
-        if (!permissionState.allPermissionsGranted) {
-            permissionState.launchMultiplePermissionRequest()
-            return
-        }
-        vm.runAudit()
-    }
+    fun runAudit() = scanPermissions.runOrRequest { vm.runAudit() }
 
     val r = report
     val headerStats = if (r != null) listOf(
@@ -105,6 +102,11 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                 onScan = ::runAudit,
                 stats = headerStats,
             )
+            PermissionBanner(
+                permissions = scanPermissions,
+                text = stringResource(R.string.perm_required_audit),
+            )
+            if (!wifiEnabled) WifiDisabledBanner(stringResource(R.string.wifi_disabled_audit))
         }
 
         // Progress bar while auditing
@@ -129,7 +131,7 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                     Text(
                         auditPhase,
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceDim,
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                     )
@@ -165,7 +167,7 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                         Text(
                             stringResource(R.string.audit_desc),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Spectrum.OnSurfaceFaint,
                         )
                     }
@@ -214,7 +216,7 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     )
                 }
-                items(r.findings, key = { "${it.target}-${it.title}" }) { finding ->
+                items(r.findings, key = { "${it.kind}-${it.target}" }) { finding ->
                     SecFindingRow(finding = finding)
                     HairlineHorizontal()
                 }
@@ -239,7 +241,7 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                 Text(
                     stringResource(R.string.audit_lan_hint),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceFaint,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                 )
@@ -255,7 +257,10 @@ private fun AuditDonut(score: Int, grade: String) {
     val surfaceColor = Spectrum.Surface
     val density = LocalDensity.current
 
-    Canvas(modifier = Modifier.size(96.dp)) {
+    // The grade letter is drawn with nativeCanvas.drawText — invisible to TalkBack
+    // without this (audit D1).
+    val gradeDescription = stringResource(R.string.cd_audit_grade, grade, score)
+    Canvas(modifier = Modifier.size(96.dp).semantics { contentDescription = gradeDescription }) {
         val cx = size.width / 2f
         val cy = size.height / 2f
         val outerR = size.width / 2f
@@ -316,7 +321,7 @@ private fun SecFindingRow(finding: SecurityFinding) {
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .clickable { expanded = !expanded }
+            .clickable(role = Role.Button) { expanded = !expanded }
             .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Row(
@@ -327,21 +332,22 @@ private fun SecFindingRow(finding: SecurityFinding) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .width(54.dp)
+                    .width(72.dp)
                     .border(1.dp, color, RoundedCornerShape(2.dp))
                     .padding(vertical = 3.dp),
             ) {
                 Text(
-                    finding.severity.label.uppercase(),
+                    stringResource(finding.severity.labelRes).uppercase(),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = color,
-                    letterSpacing = 0.12.em,
+                    letterSpacing = 0.08.em,
+                    maxLines = 1,
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    finding.title,
+                    finding.title.asString(),
                     fontSize = 14.sp,
                     color = Spectrum.OnSurface,
                     maxLines = if (expanded) Int.MAX_VALUE else 2,
@@ -350,14 +356,14 @@ private fun SecFindingRow(finding: SecurityFinding) {
                 Text(
                     finding.target,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 if (expanded) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        finding.description,
+                        finding.description.asString(),
                         fontSize = 12.sp,
                         color = Spectrum.OnSurfaceDim,
                     )
@@ -375,14 +381,14 @@ private fun SecFindingRow(finding: SecurityFinding) {
                             color = Spectrum.Accent,
                         )
                         Text(
-                            finding.recommendation,
+                            finding.recommendation.asString(),
                             fontSize = 12.sp,
                             color = Spectrum.Accent,
                         )
                     }
                 } else {
                     Text(
-                        finding.description,
+                        finding.description.asString(),
                         fontSize = 12.sp,
                         color = Spectrum.OnSurfaceDim,
                         maxLines = 2,
@@ -440,7 +446,7 @@ private fun SecPortRow(port: PortScanResult) {
                 Text(
                     b.take(60),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -451,7 +457,7 @@ private fun SecPortRow(port: PortScanResult) {
             Text(
                 "${"%.0f".format(it)}ms",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
             )
         }

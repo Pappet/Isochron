@@ -5,15 +5,16 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,11 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import com.isochron.audit.R
@@ -35,7 +36,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
-import kotlin.math.sin
 
 // ── Kicker (uppercase mono label) ────────────────────────────
 @Composable
@@ -49,7 +49,7 @@ fun SpectrumKicker(
         modifier = modifier,
         color = color,
         fontFamily = JetBrainsMonoFamily,
-        fontSize = 10.sp,
+        fontSize = 11.sp,
         letterSpacing = 0.18.em,
     )
 }
@@ -137,10 +137,11 @@ fun SpectrumScanButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .background(bg)
             .border(1.dp, borderColor, CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         BlinkingDot(color = fg, blink = scanning, size = 7.dp)
@@ -196,17 +197,20 @@ fun SpectrumFilterChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .clip(shape)
             .background(bg)
             .border(1.dp, borderColor, shape)
-            .clickable(onClick = onClick)
+            // Checkbox role: TalkBack announces the selection state, which is the
+            // whole point of a filter chip (audit D1).
+            .selectable(selected = selected, onClick = onClick, role = Role.Checkbox)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Text(
             label,
             color = fg,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             letterSpacing = 0.1.em,
         )
         if (count != null) {
@@ -214,7 +218,7 @@ fun SpectrumFilterChip(
                 count.toString(),
                 color = fg.copy(alpha = 0.6f),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
             )
         }
     }
@@ -249,7 +253,8 @@ fun SpectrumBottomNav(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { onSelect(t.key) }
+                        .minimumInteractiveComponentSize()
+                        .selectable(selected = isSel, onClick = { onSelect(t.key) }, role = Role.Tab)
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -265,7 +270,9 @@ fun SpectrumBottomNav(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = t.icon,
-                            contentDescription = t.label,
+                            // The label below carries the name; a description here
+                            // made TalkBack read "WIFI WIFI".
+                            contentDescription = null,
                             tint = color,
                             modifier = Modifier.size(16.dp),
                         )
@@ -274,7 +281,7 @@ fun SpectrumBottomNav(
                             t.label,
                             color = color,
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 8.sp,
+                            fontSize = 11.sp,
                             letterSpacing = 0.1.em,
                         )
                     }
@@ -284,33 +291,29 @@ fun SpectrumBottomNav(
     }
 }
 
-// ── Oscilloscope-style RSSI trace ────────────────────────────
+// ── RSSI level bar ───────────────────────────────────────────
+/**
+ * Signal strength as a filled fraction of the -95..-30 dBm range. Replaces the
+ * former sine "trace", which looked like a measurement but was decoration (audit B6).
+ */
 @Composable
-fun SignalTrace(
+fun SignalLevelBar(
     rssi: Int,
     modifier: Modifier = Modifier,
 ) {
     val pct = ((rssi.coerceIn(-95, -30) + 95) / 65f).coerceIn(0f, 1f)
-    val color = when {
-        pct > 0.6f -> Spectrum.Accent
-        pct > 0.3f -> Spectrum.Warning
-        else -> Spectrum.Danger
-    }
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val amp = (pct * 9f).coerceAtLeast(1f)
-        val steps = 20
-        val path = Path()
-        for (i in 0..steps) {
-            val x = (i / steps.toFloat()) * w
-            val y = h / 2f + sin(i * 0.9f + rssi) * amp * 0.5f
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round),
+    val color = rssiColor(rssi)
+    Box(
+        modifier
+            .height(3.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Spectrum.GridLine),
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(pct)
+                .background(color),
         )
     }
 }
@@ -337,4 +340,48 @@ fun HairlineHorizontal(color: Color = Spectrum.GridLine, modifier: Modifier = Mo
             .height(1.dp)
             .background(color),
     )
+}
+
+/**
+ * Full-width notice strip below the header: tinted background, monospace text and an
+ * optional outlined action on the right. Used for permission, adapter-off and similar
+ * blocking states.
+ */
+@Composable
+fun SpectrumBanner(
+    text: String,
+    color: Color,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.06f))
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = color,
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null && onAction != null) {
+            Spacer(Modifier.width(12.dp))
+            Box(
+                Modifier
+                    .minimumInteractiveComponentSize()
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(1.dp, color, RoundedCornerShape(2.dp))
+                    .clickable(role = Role.Button) { onAction() }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = color)
+            }
+        }
+    }
+    HairlineHorizontal(color = color.copy(alpha = 0.2f))
 }

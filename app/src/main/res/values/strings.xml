@@ -129,6 +129,7 @@
     <string name="empty_no_devices">Keine Geräte gefunden.</string>
     <string name="device_with_vendor">%1$s Gerät</string>
     <string name="unknown_vendor">Unbekanntes</string>
+    <string name="unknown_manufacturer">unbekannter Hersteller</string>
     <string name="cd_remove_fav">Aus Favoriten entfernen</string>
     <string name="cd_add_fav">Als Favorit markieren</string>
     <string name="cd_favorite">Favorit</string>
@@ -287,4 +288,233 @@
     <string name="lan_port_scan_progress">Port %1$d · %2$d%% · %3$d offen</string>
     <string name="lan_no_open_ports">Keine offenen Ports gefunden.</string>
     <string name="lan_port_service">%1$s · %2$s</string>
+    <!-- Berechtigungen: dauerhafte Ablehnung -->
+    <string name="perm_denied_permanently">Berechtigung dauerhaft abgelehnt. Bitte in den Systemeinstellungen erteilen.</string>
+    <string name="perm_open_settings">Einstellungen öffnen</string>
+
+    <!-- Onboarding: Ergebnis der Berechtigungsabfrage -->
+    <string name="onboarding_perm_denied_hint">Nicht alle Berechtigungen wurden erteilt. Ohne sie bleiben die Scan-Ergebnisse leer.</string>
+    <string name="onboarding_cta_skip_perms">Trotzdem fortfahren</string>
+
+    <!-- Inventar: Löschbestätigung -->
+    <string name="delete_confirm_title">Gerät löschen?</string>
+    <string name="delete_confirm_text">„%1$s“ wird mit allen Notizen, Labels und der Historie endgültig aus dem Inventar entfernt.</string>
+
+    <!-- Stufe 2: Fehlerkanal (Snackbar) -->
+    <string name="err_wifi_scan">WLAN-Scan fehlgeschlagen.</string>
+    <string name="err_persist">Ergebnis konnte nicht gespeichert werden.</string>
+    <string name="err_lan_scan">LAN-Scan fehlgeschlagen: %1$s</string>
+    <string name="err_port_scan">Port-Scan fehlgeschlagen: %1$s</string>
+    <string name="err_export">Export fehlgeschlagen: %1$s</string>
+    <string name="err_channel_analysis">Kanalanalyse fehlgeschlagen.</string>
+    <string name="err_audit">Audit abgebrochen: %1$s</string>
+    <string name="err_audit_partial">Teil des Audits fehlgeschlagen: %1$s</string>
+    <string name="err_monitor_cycle">Monitoring-Messung fehlgeschlagen: %1$s</string>
+    <string name="err_wifi_off">WLAN ist aus — kein Scan möglich.</string>
+    <string name="err_unknown">Unbekannter Fehler</string>
+
+    <!-- Stufe 2: WLAN-Status -->
+    <string name="wifi_open_settings">WLAN-Einstellungen</string>
+    <string name="wifi_disabled_audit">WLAN ist deaktiviert. Der Audit findet keine Netze.</string>
+
+    <!-- Stufe 2: Berechtigungen je Tab -->
+    <string name="perm_required_channel">Standort-Berechtigung wird für die Kanalanalyse benötigt.</string>
+    <string name="perm_required_audit">Standort- und Bluetooth-Berechtigungen werden für den Audit benötigt.</string>
+    <string name="perm_required_notif">Ohne Benachrichtigungs-Berechtigung läuft das Monitoring unsichtbar — kein Status, kein Stopp-Knopf.</string>
+
+    <!-- Stufe 2: Scan-Abbruch -->
+    <string name="btn_stop">Stopp</string>
+    <string name="chip_cancel_port_scan">Abbrechen</string>
+    <string name="lan_scan_cancelled">Scan abgebrochen.</string>
+    <string name="all_ports_confirm_title">Alle 65.535 Ports scannen?</string>
+    <string name="all_ports_confirm_text">Der Scan von %1$s dauert je nach Netz mehrere Minuten und lässt sich jederzeit über „Abbrechen“ stoppen.</string>
+    <string name="btn_start_scan">Scan starten</string>
+
+    <!-- Stufe 3: Text-Alternativen für Canvas-Grafiken -->
+    <string name="cd_audit_grade">Sicherheitsnote %1$s, %2$d von 100 Punkten</string>
+    <string name="cd_channel_chart">Kanalauslastung im %1$s-GHz-Band. Empfohlener Kanal %2$s mit %3$d Prozent Auslastung.</string>
+    <string name="cd_bt_radar">Bluetooth-Radar mit %1$d Geräten in der Nähe</string>
+
+    <!-- Stufe 4: Bluetooth-Distanzdiagramm -->
+    <string name="bt_radar_caption">ABSTAND = SIGNALSTÄRKE · RICHTUNG UNBEKANNT</string>
+
+    <!-- Stufe 4 (E1): Monitor -->
+    <string name="mon_subtitle">Live</string>
+    <string name="mon_stat_interval">Intervall</string>
+    <string name="mon_stat_samples">Messungen</string>
+    <string name="mon_stat_service">Dienst</string>
+    <string name="mon_metric_signal">SIGNAL</string>
+    <string name="mon_metric_gateway">GATEWAY-LATENZ</string>
+    <string name="mon_metric_internet">INTERNET (8.8.8.8)</string>
+    <string name="mon_avg">Ø %1$s %2$s</string>
+    <string name="mon_avg_none">Ø —</string>
+    <string name="mon_span">%1$d Messungen · %2$d s</string>
+    <string name="mon_session">SITZUNG</string>
+    <string name="mon_session_scans">Scans</string>
+    <string name="mon_session_new_devices">Neue Geräte</string>
+    <string name="mon_session_avg_signal">Ø Signal</string>
+    <string name="mon_session_avg_gateway">Ø Gateway</string>
+    <string name="mon_session_avg_internet">Ø Internet</string>
+    <string name="mon_interval">SCAN-INTERVALL</string>
+    <string name="mon_interval_5s">5 SEK</string>
+    <string name="mon_interval_10s">10 SEK</string>
+    <string name="mon_interval_30s">30 SEK</string>
+    <string name="mon_interval_1m">1 MIN</string>
+    <string name="btn_start">Start</string>
+
+    <!-- Stufe 4 (E1/E2): Kanalanalyse -->
+    <string name="ch_subtitle">Kanalanalyse</string>
+    <string name="ch_stat_recommended">empfohlen</string>
+    <string name="ch_stat_utilization">Auslastung</string>
+    <string name="ch_stat_channels">Kanäle</string>
+    <string name="ch_band_24">2,4 GHZ BAND</string>
+    <string name="ch_band_5">5 GHZ BAND</string>
+    <string name="ch_chart_title">AUSLASTUNG // DB/KANAL</string>
+    <string name="ch_recommended">EMPFEHLUNG</string>
+    <string name="ch_rec_title">Geringste Auslastung im Band</string>
+    <string name="ch_rec_detail">%1$d %% belegt · %2$s · %3$s</string>
+    <plurals name="ch_rec_aps">
+        <item quantity="one">%1$d AP</item>
+        <item quantity="other">%1$d APs</item>
+    </plurals>
+    <string name="ch_reason_free">frei — kein Netzwerk auf diesem Kanal</string>
+    <string name="ch_reason_one_weak">nur 1 schwaches Netzwerk (%1$d dBm)</string>
+    <string name="ch_reason_low">%1$d Netzwerke, geringe Auslastung</string>
+    <string name="ch_reason_moderate">%1$d Netzwerke, moderate Auslastung</string>
+    <string name="ch_reason_high">%1$d Netzwerke, stark ausgelastet</string>
+    <string name="ch_legend_clear">FREI</string>
+    <string name="ch_legend_med">MITTEL</string>
+    <string name="ch_legend_congested">VOLL</string>
+    <string name="ch_empty_hint">Tippe auf „Scannen“ für die\nWLAN-Kanalanalyse.</string>
+
+    <!-- Stufe 4 (E1): WLAN-Detail -->
+    <string name="wd_hidden_network">Verstecktes Netzwerk</string>
+    <string name="wd_signal_unit">dBm · SIGNAL</string>
+    <string name="wd_specs">SPEZIFIKATION</string>
+    <string name="wd_spec_channel">KANAL</string>
+    <string name="wd_spec_frequency">FREQUENZ</string>
+    <string name="wd_spec_width">BREITE</string>
+    <string name="wd_spec_standard">STANDARD</string>
+    <string name="wd_spec_vendor">HERSTELLER</string>
+    <string name="wd_spec_security">SICHERHEIT</string>
+    <string name="wd_spec_distance">DISTANZ</string>
+    <string name="wd_wps_on">⚠ AKTIV</string>
+    <string name="wd_wps_off">AUS</string>
+    <string name="wd_risk_open">Offenes Netzwerk — keine Verschlüsselung. Jeder kann den Datenverkehr mitlesen.</string>
+    <string name="wd_risk_wep">WEP ist gebrochen — in Minuten mit airodump zu knacken.</string>
+    <string name="wd_risk_wpa">WPA1 ist veraltet — anfällig für TKIP-Angriffe.</string>
+    <string name="wd_risk_wps">WPS ist aktiv — anfällig für Pixie-Dust-Angriffe.</string>
+
+    <!-- Stufe 4 (E2): Security-Audit-Befunde -->
+    <string name="severity_critical">Kritisch</string>
+    <string name="severity_high">Hoch</string>
+    <string name="severity_medium">Mittel</string>
+    <string name="severity_low">Niedrig</string>
+    <string name="severity_info">Info</string>
+    <string name="category_wifi">WLAN</string>
+    <string name="category_bluetooth">Bluetooth</string>
+    <string name="category_network">Netzwerk</string>
+    <string name="category_ports">Ports &amp; Dienste</string>
+    <string name="category_encryption">Verschlüsselung</string>
+
+    <string name="f_open_wifi_title">Offenes WLAN</string>
+    <string name="f_open_wifi_connected_title">Offenes WLAN (verbunden!)</string>
+    <string name="f_open_wifi_desc">„%1$s“ hat keine Verschlüsselung. Jeglicher Traffic kann mitgelesen werden.</string>
+    <string name="f_open_wifi_rec">WPA3 oder mindestens WPA2 aktivieren. Nicht mit offenen Netzwerken verbinden.</string>
+    <string name="f_wep_title">WEP-Verschlüsselung (unsicher)</string>
+    <string name="f_wep_desc">„%1$s“ nutzt WEP. Diese Verschlüsselung kann in Minuten geknackt werden.</string>
+    <string name="f_wep_rec">Sofort auf WPA2 oder WPA3 umstellen.</string>
+    <string name="f_wpa1_title">WPA (veraltet)</string>
+    <string name="f_wpa1_desc">„%1$s“ nutzt WPA1. Anfällig für TKIP-Angriffe.</string>
+    <string name="f_wpa1_rec">Auf WPA2-AES oder WPA3 upgraden.</string>
+    <string name="f_wps_title">WPS aktiviert</string>
+    <string name="f_wps_desc">„%1$s“ hat WPS (Wi-Fi Protected Setup) aktiv. Anfällig für Pixie Dust und Brute-Force.</string>
+    <string name="f_wps_rec">WPS im Router deaktivieren.</string>
+    <string name="f_hidden_title">Verstecktes Netzwerk</string>
+    <string name="f_hidden_desc">Verbunden mit einem versteckten Netzwerk. SSID-Hiding bietet keinen echten Schutz.</string>
+    <string name="f_hidden_rec">SSID-Hiding bietet keine Sicherheit. Stattdessen starke Verschlüsselung verwenden.</string>
+    <string name="f_no_wpa3_title">WPA3 nicht aktiv</string>
+    <string name="f_no_wpa3_desc">„%1$s“ nutzt WPA2. WPA3 bietet besseren Schutz gegen Offline-Wörterbuch-Angriffe.</string>
+    <string name="f_no_wpa3_rec">WPA3 aktivieren, falls Router und Clients es unterstützen.</string>
+    <string name="f_unknown_ble_title">Unbekanntes BLE-Gerät sendet Services</string>
+    <string name="f_unknown_ble_desc">Gerät %1$s (%2$s) sendet %3$d Service-UUIDs, ohne sich zu identifizieren.</string>
+    <string name="f_unknown_ble_rec">Prüfen, ob das Gerät zum eigenen Netzwerk gehört.</string>
+    <string name="f_bt_visible_title">Bluetooth-Gerät sichtbar &amp; nicht gekoppelt</string>
+    <string name="f_bt_visible_desc">„%1$s“ ist für alle sichtbar und nicht gekoppelt.</string>
+    <string name="f_bt_visible_rec">Bluetooth-Sichtbarkeit nur bei Bedarf aktivieren.</string>
+    <string name="f_many_bt_title">%1$d fremde Bluetooth-Geräte in Reichweite</string>
+    <string name="f_many_bt_desc">Viele nicht gekoppelte Bluetooth-Geräte in der Umgebung. Bluetooth-Tracking ist möglich.</string>
+    <string name="f_many_bt_rec">Bluetooth deaktivieren, wenn nicht benötigt.</string>
+    <string name="f_port_open_title">%1$s offen (%2$s)</string>
+    <string name="f_port_open_desc">Port %1$d (%2$s) ist offen auf %3$s.</string>
+    <string name="f_port_open_desc_banner">Port %1$d (%2$s) ist offen auf %3$s. Banner: „%4$s“</string>
+    <string name="f_port_rec_23">Telnet sofort deaktivieren und durch SSH ersetzen.</string>
+    <string name="f_port_rec_21">FTP durch SFTP oder SCP ersetzen.</string>
+    <string name="f_port_rec_6379">Redis: AUTH-Passwort setzen und Bind-Adresse einschränken.</string>
+    <string name="f_port_rec_27017">MongoDB: Authentifizierung aktivieren und Bind-Adresse einschränken.</string>
+    <string name="f_port_rec_3306">MySQL: Nur auf localhost binden oder Firewall-Regel setzen.</string>
+    <string name="f_port_rec_5432">PostgreSQL: pg_hba.conf prüfen, nur autorisierte IPs erlauben.</string>
+    <string name="f_port_rec_3389">RDP: NLA aktivieren, starke Passwörter erzwingen, VPN vorschalten.</string>
+    <string name="f_port_rec_5900">VNC: Starkes Passwort setzen, idealerweise nur über SSH-Tunnel.</string>
+    <string name="f_port_rec_445">SMB: Nicht ins Internet exponieren, SMBv1 deaktivieren.</string>
+    <string name="f_port_rec_139">NetBIOS: Falls nicht benötigt, deaktivieren.</string>
+    <string name="f_port_rec_1883">MQTT: TLS und Authentifizierung aktivieren.</string>
+    <string name="f_port_rec_9200">Elasticsearch: X-Pack Security aktivieren oder Zugriff einschränken.</string>
+    <string name="f_port_rec_80">HTTP: HTTPS erzwingen, HTTP auf 301-Redirect umstellen.</string>
+    <string name="f_port_rec_110">POP3: Auf POP3S (Port 995) umstellen.</string>
+    <string name="f_port_rec_143">IMAP: Auf IMAPS (Port 993) umstellen.</string>
+    <string name="f_port_rec_default">Prüfen, ob der Dienst benötigt wird. Nicht benötigte Ports schließen.</string>
+    <string name="f_version_title">Versions-Info exponiert</string>
+    <string name="f_version_desc">%1$s auf %2$s gibt Versionsinformationen preis: „%3$s“</string>
+    <string name="f_version_rec">Server-Banner unterdrücken, um Information Disclosure zu minimieren.</string>
+
+    <!-- Stufe 4 (E2): Monitoring-Benachrichtigung -->
+    <string name="notif_monitoring_active">Monitoring aktiv…</string>
+    <string name="notif_no_wifi">Kein WLAN</string>
+    <string name="notif_channel_name">Netzwerk-Monitoring</string>
+    <string name="notif_channel_desc">Zeigt den Status des Netzwerk-Monitorings</string>
+
+    <!-- Stufe 4 (E2): Bluetooth-Typ und Kopplungsstatus -->
+    <string name="bt_type_classic">Classic</string>
+    <string name="bt_type_ble">BLE</string>
+    <string name="bt_type_dual">Dual</string>
+    <string name="bt_type_unknown">Unbekannt</string>
+    <string name="bond_bonded">Gekoppelt</string>
+    <string name="bond_bonding">Kopplung…</string>
+    <string name="bond_not_bonded">Nicht gekoppelt</string>
+
+    <!-- Stufe 4 (F1): Navigation -->
+    <string name="nav_scan">SCAN</string>
+    <string name="nav_analyse">ANALYSE</string>
+    <string name="nav_audit">AUDIT</string>
+    <string name="nav_inventory">INVENTAR</string>
+    <string name="nav_sub_wifi">WLAN</string>
+    <string name="nav_sub_bluetooth">BLUETOOTH</string>
+    <string name="nav_sub_lan">LAN</string>
+    <string name="nav_sub_channels">KANÄLE</string>
+    <string name="nav_sub_monitor">MONITOR</string>
+    <string name="nav_sub_security">SECURITY</string>
+    <string name="nav_sub_map">KARTE</string>
+
+    <!-- Stufe 4 (F4/G2): Einstellungen -->
+    <string name="settings_kicker">ISOCHRON / SETUP</string>
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_section_permissions">BERECHTIGUNGEN</string>
+    <string name="settings_manage_permissions">Berechtigungen verwalten</string>
+    <string name="settings_manage_permissions_desc">Öffnet die App-Info in den Systemeinstellungen.</string>
+    <string name="settings_replay_onboarding">Einführung erneut ansehen</string>
+    <string name="settings_replay_onboarding_desc">Zeigt die drei Startseiten inklusive Berechtigungsabfrage noch einmal.</string>
+    <string name="settings_section_monitoring">MONITORING</string>
+    <string name="settings_interval_desc">Standard-Intervall, mit dem der Monitor-Tab startet.</string>
+    <string name="settings_section_data">DATEN</string>
+    <string name="settings_wipe">Alle Daten löschen</string>
+    <string name="settings_wipe_desc">Entfernt das gesamte Inventar, alle Scan-Sitzungen und Signalverläufe.</string>
+    <string name="settings_wipe_confirm_title">Wirklich alles löschen?</string>
+    <string name="settings_wipe_confirm_text">Inventar, Notizen, Favoriten, Scan-Sitzungen und Signalverläufe werden endgültig entfernt. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_wipe_confirm_btn">Alles löschen</string>
+    <string name="settings_wipe_done">Alle Daten gelöscht.</string>
+    <string name="settings_wipe_failed">Löschen fehlgeschlagen: %1$s</string>
+    <string name="settings_section_about">ÜBER</string>
+    <string name="settings_version">Isochron %1$s</string>
+    <string name="settings_attribution">Kartendaten © OpenStreetMap-Mitwirkende (ODbL). Kartenbibliothek osmdroid (Apache 2.0). Berechtigungs-Helfer Accompanist (Apache 2.0). Material Icons (Apache 2.0). Schriften JetBrains Mono (OFL) und Inter (OFL).</string>
 </resources>

@@ -2,6 +2,7 @@ package com.isochron.audit.ui.screens
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,27 +51,25 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.isochron.audit.R
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.ui.UiMessageBus
 import com.isochron.audit.ui.components.BlinkingDot
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
-import com.isochron.audit.ui.components.SignalTrace
+import com.isochron.audit.ui.components.PermissionBanner
+import com.isochron.audit.ui.components.SignalLevelBar
 import com.isochron.audit.ui.components.SpectrumFilterChip
 import com.isochron.audit.ui.components.SpectrumHeader
 import com.isochron.audit.ui.components.SpectrumKicker
 import com.isochron.audit.ui.components.SpectrumScanButton
+import com.isochron.audit.ui.components.WifiDisabledBanner
+import com.isochron.audit.ui.components.rememberScanPermissions
 import com.isochron.audit.ui.components.rssiColor
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
 import com.isochron.audit.ui.viewmodel.WifiViewModel
 import kotlinx.coroutines.launch
-
-private fun WifiNetwork.isRisk() =
-    securityType.equals("Open", ignoreCase = true) ||
-    securityType.contains("WEP", ignoreCase = true) ||
-    wpsEnabled
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -90,13 +92,15 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
+    val scanPermissions = rememberScanPermissions(permissions) { vm.scan() }
+    val wifiEnabled by vm.wifiEnabled.collectAsState()
 
     val displayed = remember(networks, filter) {
         networks.filter { n ->
             when (filter) {
                 "2.4" -> n.band.contains("2.4")
-                "5"   -> n.band.contains("5")
+                "5"   -> n.band.contains("5 GHz")
+                "6"   -> n.band.contains("6 GHz")
                 "risk" -> n.isRisk()
                 else  -> true
             }
@@ -107,7 +111,8 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
     // Ensure `isRisk` and counts are memoized correctly (already done nicely here!).
     val riskCount   = remember(networks) { networks.count { it.isRisk() } }
     val count24     = remember(networks) { networks.count { it.band.contains("2.4") } }
-    val count5      = remember(networks) { networks.count { it.band.contains("5") } }
+    val count5      = remember(networks) { networks.count { it.band.contains("5 GHz") } }
+    val count6      = remember(networks) { networks.count { it.band.contains("6 GHz") } }
 
     val favorites by vm.repository.observeFavorites().collectAsState(initial = emptyList())
     // ⚡ Bolt Performance Optimization:
@@ -115,6 +120,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
     val favoriteAddresses = remember(favorites) { favorites.map { it.address }.toSet() }
 
     vm.selectedNetwork?.let { network ->
+        BackHandler { vm.selectedNetwork = null }
         val favEntity by vm.repository.observeDeviceByAddress(network.bssid).collectAsState(initial = null)
         WifiDetailScreen(
             network = network,
@@ -131,10 +137,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             kicker = "WIFI",
             subtitle = "Airspace",
             scanning = isScanning,
-            onScan = {
-                if (!permissionState.allPermissionsGranted) permissionState.launchMultiplePermissionRequest()
-                else vm.scan()
-            },
+            onScan = { scanPermissions.runOrRequest { vm.scan() } },
             stats = if (hasScanned) listOf(
                 HeaderStat(networks.size.toString(), "found"),
                 HeaderStat(count24.toString(), "2.4GHz"),
@@ -143,24 +146,12 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             ) else emptyList(),
         )
 
-        // Permission banner
-        if (!permissionState.allPermissionsGranted) {
-            WifiBanner(
-                text = stringResource(R.string.perm_required_title) + " — " +
-                       stringResource(R.string.perm_required_desc),
-                color = Spectrum.Danger,
-                action = stringResource(R.string.perm_grant_btn),
-                onAction = { permissionState.launchMultiplePermissionRequest() },
-            )
-        }
-
-        // WiFi disabled banner
-        if (!vm.isWifiEnabled()) {
-            WifiBanner(
-                text = stringResource(R.string.wifi_disabled_warn),
-                color = Spectrum.Warning,
-            )
-        }
+        PermissionBanner(
+            permissions = scanPermissions,
+            text = stringResource(R.string.perm_required_title) + " — " +
+                stringResource(R.string.perm_required_desc),
+        )
+        if (!wifiEnabled) WifiDisabledBanner()
 
         // Filter chips
         Row(
@@ -173,6 +164,11 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             SpectrumFilterChip("ALL",    filter == "all",  { vm.filter = "all" },  count = networks.size)
             SpectrumFilterChip("2.4GHZ", filter == "2.4",  { vm.filter = "2.4" },  count = count24)
             SpectrumFilterChip("5GHZ",   filter == "5",    { vm.filter = "5" },    count = count5)
+            // Keep the chip while it is the active filter, so a rescan without 6 GHz
+            // networks cannot strand the user in a filter they can no longer clear.
+            if (count6 > 0 || filter == "6") {
+                SpectrumFilterChip("6GHZ", filter == "6",  { vm.filter = "6" },  count = count6)
+            }
             SpectrumFilterChip("⚠ RISK", filter == "risk", { vm.filter = "risk" }, count = riskCount)
         }
         HairlineHorizontal()
@@ -202,6 +198,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
                         context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.export_wardriving)))
                     } catch (e: Exception) {
                         android.util.Log.e("WifiScreen", "Export error", e)
+                        UiMessageBus.postError(R.string.err_export, e)
                     }
                 }
             },
@@ -226,45 +223,6 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
 // ── Sub-composables ──────────────────────────────────────────
 
 @Composable
-private fun WifiBanner(
-    text: String,
-    color: androidx.compose.ui.graphics.Color,
-    action: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(color.copy(alpha = 0.06f))
-            .border(width = 0.dp, color = androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text,
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
-            color = color,
-            modifier = Modifier.weight(1f),
-        )
-        if (action != null && onAction != null) {
-            Spacer(Modifier.width(12.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(2.dp))
-                    .border(1.dp, color, RoundedCornerShape(2.dp))
-                    .clickable { onAction() }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = color)
-            }
-        }
-    }
-    HairlineHorizontal(color = color.copy(alpha = 0.2f))
-}
-
-@Composable
 private fun WifiGpsStrip(
     gpsEnabled: Boolean,
     geoTagCount: Int,
@@ -280,6 +238,7 @@ private fun WifiGpsStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
+        val gpsLabel = "GPS Wardriving"
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BlinkingDot(color = if (gpsEnabled) Spectrum.Accent else Spectrum.OnSurfaceFaint, blink = gpsEnabled, size = 6.dp)
             Text(
@@ -287,7 +246,7 @@ private fun WifiGpsStrip(
                 else if (gpsEnabled) "GPS · warte auf Fix..."
                 else "GPS WARDRIVING",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = if (gpsEnabled) Spectrum.Accent else Spectrum.OnSurfaceDim,
                 letterSpacing = 0.1.em,
             )
@@ -296,9 +255,10 @@ private fun WifiGpsStrip(
             if (gpsEnabled && geoTagCount > 0) {
                 Box(
                     Modifier
+                        .minimumInteractiveComponentSize()
                         .clip(RoundedCornerShape(2.dp))
                         .border(1.dp, Spectrum.AccentDim, RoundedCornerShape(2.dp))
-                        .clickable { onExport() }
+                        .clickable(role = Role.Button) { onExport() }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.export_wardriving), tint = Spectrum.Accent, modifier = Modifier.size(12.dp))
@@ -307,7 +267,8 @@ private fun WifiGpsStrip(
             Switch(
                 checked = gpsEnabled,
                 onCheckedChange = onToggle,
-                modifier = Modifier.height(20.dp),
+                // Was forced to 20 dp — Switch brings its own 48 dp touch target.
+                modifier = Modifier.semantics { contentDescription = gpsLabel },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Spectrum.Surface,
                     checkedTrackColor = Spectrum.Accent,
@@ -338,7 +299,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable { onClick() }
+                .clickable(role = Role.Button) { onClick() }
                 .background(if (network.isConnected) Spectrum.Accent.copy(alpha = 0.04f) else Spectrum.Surface)
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -357,11 +318,12 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                     Text(
                         " dBm",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceDim,
                     )
                 }
-                SignalTrace(rssi = network.signalStrength, modifier = Modifier.fillMaxWidth().height(12.dp))
+                Spacer(Modifier.height(5.dp))
+                SignalLevelBar(rssi = network.signalStrength, modifier = Modifier.fillMaxWidth())
             }
 
             // Middle: SSID + meta
@@ -378,13 +340,11 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                             modifier = Modifier.size(12.dp)
                         )
                     }
-                    val isHidden = network.ssid.isBlank() || network.ssid == "(hidden)"
                     Text(
-                        text = if (isHidden) "(hidden)" else network.ssid,
+                        text = if (network.isHidden) stringResource(R.string.wd_hidden_network) else network.ssid,
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 15.sp,
-                        color = if (isHidden) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
-                        fontStyle = if (isHidden) FontStyle.Italic else FontStyle.Normal,
+                        color = if (network.isHidden) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                         letterSpacing = (-0.01).em,
                         maxLines = 1,
@@ -399,7 +359,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                         network.vendor?.let { append(" · $it") }
                     },
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.04.em,
                     maxLines = 1,
@@ -412,7 +372,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                 Text(
                     "${if (risk) "⚠" else "•"} ${network.securityType}",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = if (risk) Spectrum.Danger else Spectrum.OnSurfaceDim,
                     letterSpacing = 0.1.em,
                     maxLines = 1,
@@ -421,7 +381,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                     Text(
                         "~${"%.1f".format(it)}m",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceFaint,
                     )
                 }

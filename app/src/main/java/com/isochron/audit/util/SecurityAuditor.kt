@@ -1,8 +1,12 @@
 package com.isochron.audit.util
 
+import androidx.annotation.StringRes
+import com.isochron.audit.R
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.data.WifiSecurity
 import com.isochron.audit.data.BluetoothDevice
 import com.isochron.audit.data.BondState
+import com.isochron.audit.ui.UiText
 
 /**
  * Represents a specific security vulnerability or observation.
@@ -10,32 +14,34 @@ import com.isochron.audit.data.BondState
 data class SecurityFinding(
     val severity: FindingSeverity,
     val category: FindingCategory,
-    val title: String,
-    val description: String,
+    val title: UiText,
+    val description: UiText,
     val target: String,           // IP, MAC, SSID
-    val recommendation: String
+    val recommendation: UiText,
+    /** Stable identity for list keys; `target` alone repeats across findings. */
+    val kind: String,
 )
 
 /**
  * Severity levels for [SecurityFinding]s, including risk score and UI color.
  */
-enum class FindingSeverity(val label: String, val score: Int, val color: Long) {
-    CRITICAL("Kritisch", 10, 0xFFD32F2F),
-    HIGH("Hoch", 7, 0xFFE64A19),
-    MEDIUM("Mittel", 4, 0xFFF57C00),
-    LOW("Niedrig", 2, 0xFFFBC02D),
-    INFO("Info", 0, 0xFF42A5F5)
+enum class FindingSeverity(@StringRes val labelRes: Int, val score: Int, val color: Long) {
+    CRITICAL(R.string.severity_critical, 10, 0xFFD32F2F),
+    HIGH(R.string.severity_high, 7, 0xFFE64A19),
+    MEDIUM(R.string.severity_medium, 4, 0xFFF57C00),
+    LOW(R.string.severity_low, 2, 0xFFFBC02D),
+    INFO(R.string.severity_info, 0, 0xFF42A5F5)
 }
 
 /**
  * Categories for grouping [SecurityFinding]s in the audit report.
  */
-enum class FindingCategory(val label: String) {
-    WIFI("WLAN"),
-    BLUETOOTH("Bluetooth"),
-    NETWORK("Netzwerk"),
-    PORTS("Ports & Dienste"),
-    ENCRYPTION("Verschlüsselung")
+enum class FindingCategory(@StringRes val labelRes: Int) {
+    WIFI(R.string.category_wifi),
+    BLUETOOTH(R.string.category_bluetooth),
+    NETWORK(R.string.category_network),
+    PORTS(R.string.category_ports),
+    ENCRYPTION(R.string.category_encryption)
 }
 
 /**
@@ -142,38 +148,41 @@ object SecurityAuditor {
             val isConnected = network.isConnected
 
             // Open network (no encryption)
-            if (network.securityType == "Offen") {
+            if (network.security.isUnencrypted) {
                 findings.add(SecurityFinding(
                     severity = if (isConnected) FindingSeverity.CRITICAL else FindingSeverity.HIGH,
                     category = FindingCategory.WIFI,
-                    title = "Offenes WLAN${if (isConnected) " (verbunden!)" else ""}",
-                    description = "\"${network.ssid}\" hat keine Verschlüsselung. Jeglicher Traffic kann mitgelesen werden.",
+                    title = UiText(if (isConnected) R.string.f_open_wifi_connected_title else R.string.f_open_wifi_title),
+                    description = UiText(R.string.f_open_wifi_desc, network.ssid),
                     target = network.ssid,
-                    recommendation = "WPA3 oder mindestens WPA2 aktivieren. Nicht mit offenen Netzwerken verbinden."
+                    recommendation = UiText(R.string.f_open_wifi_rec),
+                    kind = "open-wifi",
                 ))
             }
 
             // WEP encryption
-            if (network.securityType == "WEP") {
+            if (network.security == WifiSecurity.WEP) {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.CRITICAL,
                     category = FindingCategory.WIFI,
-                    title = "WEP-Verschlüsselung (unsicher)",
-                    description = "\"${network.ssid}\" nutzt WEP. Diese Verschlüsselung kann in Minuten geknackt werden.",
+                    title = UiText(R.string.f_wep_title),
+                    description = UiText(R.string.f_wep_desc, network.ssid),
                     target = network.ssid,
-                    recommendation = "Sofort auf WPA2 oder WPA3 umstellen."
+                    recommendation = UiText(R.string.f_wep_rec),
+                    kind = "wep",
                 ))
             }
 
             // WPA (v1) — deprecated
-            if (network.securityType == "WPA" && !network.securityType.contains("WPA2")) {
+            if (network.security == WifiSecurity.WPA) {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.HIGH,
                     category = FindingCategory.WIFI,
-                    title = "WPA (veraltet)",
-                    description = "\"${network.ssid}\" nutzt WPA1. Anfällig für TKIP-Angriffe.",
+                    title = UiText(R.string.f_wpa1_title),
+                    description = UiText(R.string.f_wpa1_desc, network.ssid),
                     target = network.ssid,
-                    recommendation = "Auf WPA2-AES oder WPA3 upgraden."
+                    recommendation = UiText(R.string.f_wpa1_rec),
+                    kind = "wpa1",
                 ))
             }
 
@@ -182,36 +191,39 @@ object SecurityAuditor {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.MEDIUM,
                     category = FindingCategory.WIFI,
-                    title = "WPS aktiviert",
-                    description = "\"${network.ssid}\" hat WPS (Wi-Fi Protected Setup) aktiv. Anfällig für Pixie Dust und Brute-Force.",
+                    title = UiText(R.string.f_wps_title),
+                    description = UiText(R.string.f_wps_desc, network.ssid),
                     target = network.ssid,
-                    recommendation = "WPS im Router deaktivieren."
+                    recommendation = UiText(R.string.f_wps_rec),
+                    kind = "wps",
                 ))
             }
 
             // Hidden network connected
-            if (network.ssid == "(Verstecktes Netzwerk)" && isConnected) {
+            if (network.isHidden && isConnected) {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.LOW,
                     category = FindingCategory.WIFI,
-                    title = "Verstecktes Netzwerk",
-                    description = "Verbunden mit einem versteckten Netzwerk. SSID-Hiding bietet keinen echten Schutz.",
+                    title = UiText(R.string.f_hidden_title),
+                    description = UiText(R.string.f_hidden_desc),
                     target = network.bssid,
-                    recommendation = "SSID-Hiding bietet keine Security. Stattdessen starke Verschlüsselung verwenden."
+                    recommendation = UiText(R.string.f_hidden_rec),
+                    kind = "hidden",
                 ))
             }
         }
 
         // Check if connected network uses WPA3
         val connectedNetwork = networks.find { it.isConnected }
-        if (connectedNetwork != null && connectedNetwork.securityType == "WPA2") {
+        if (connectedNetwork != null && connectedNetwork.security == WifiSecurity.WPA2) {
             findings.add(SecurityFinding(
                 severity = FindingSeverity.INFO,
                 category = FindingCategory.WIFI,
-                title = "WPA3 nicht aktiv",
-                description = "\"${connectedNetwork.ssid}\" nutzt WPA2. WPA3 bietet besseren Schutz gegen Offline-Wörterbuch-Angriffe.",
+                title = UiText(R.string.f_no_wpa3_title),
+                description = UiText(R.string.f_no_wpa3_desc, connectedNetwork.ssid),
                 target = connectedNetwork.ssid,
-                recommendation = "WPA3 aktivieren falls Router und Clients es unterstützen."
+                recommendation = UiText(R.string.f_no_wpa3_rec),
+                kind = "no-wpa3",
             ))
         }
 
@@ -225,17 +237,22 @@ object SecurityAuditor {
 
         for (device in devices) {
             // Device without name — potential for tracking
-            if (device.name == "(Unbekannt)" && device.bondState == BondState.NOT_BONDED) {
+            if (device.isUnnamed && device.bondState == BondState.NOT_BONDED) {
                 // Too many unknowns = noise, skip unless it's BLE with service UUIDs
                 if (device.serviceUuids.isNotEmpty()) {
                     findings.add(SecurityFinding(
                         severity = FindingSeverity.INFO,
                         category = FindingCategory.BLUETOOTH,
-                        title = "Unbekanntes BLE-Gerät sendet Services",
-                        description = "Gerät ${device.address} (${device.vendor ?: "unbekannter Hersteller"}) " +
-                                "sendet ${device.serviceUuids.size} Service-UUIDs ohne sich zu identifizieren.",
+                        title = UiText(R.string.f_unknown_ble_title),
+                        description = UiText(
+                            R.string.f_unknown_ble_desc,
+                            device.address,
+                            device.vendor ?: UiText(R.string.unknown_manufacturer),
+                            device.serviceUuids.size,
+                        ),
                         target = device.address,
-                        recommendation = "Prüfen ob das Gerät zum eigenen Netzwerk gehört."
+                        recommendation = UiText(R.string.f_unknown_ble_rec),
+                        kind = "unknown-ble",
                     ))
                 }
                 continue
@@ -248,26 +265,28 @@ object SecurityAuditor {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.LOW,
                     category = FindingCategory.BLUETOOTH,
-                    title = "Bluetooth-Gerät sichtbar & nicht gekoppelt",
-                    description = "\"${device.displayName()}\" ist für alle sichtbar und nicht gekoppelt.",
+                    title = UiText(R.string.f_bt_visible_title),
+                    description = UiText(R.string.f_bt_visible_desc, device.displayName()),
                     target = device.displayName(),
-                    recommendation = "Bluetooth-Sichtbarkeit nur bei Bedarf aktivieren."
+                    recommendation = UiText(R.string.f_bt_visible_rec),
+                    kind = "bt-visible",
                 ))
             }
         }
 
         // General: many BT devices around
         val unknownBt = devices.count {
-            it.bondState == BondState.NOT_BONDED && it.name != "(Unbekannt)"
+            it.bondState == BondState.NOT_BONDED && !it.isUnnamed
         }
         if (unknownBt > 10) {
             findings.add(SecurityFinding(
                 severity = FindingSeverity.INFO,
                 category = FindingCategory.BLUETOOTH,
-                title = "$unknownBt fremde Bluetooth-Geräte in Reichweite",
-                description = "Viele nicht-gekoppelte Bluetooth-Geräte in der Umgebung. Bluetooth-Tracking ist möglich.",
-                target = "Umgebung",
-                recommendation = "Bluetooth deaktivieren wenn nicht benötigt."
+                title = UiText(R.string.f_many_bt_title, unknownBt),
+                description = UiText(R.string.f_many_bt_desc),
+                target = "*",
+                recommendation = UiText(R.string.f_many_bt_rec),
+                kind = "many-bt",
             ))
         }
 
@@ -291,39 +310,39 @@ object SecurityAuditor {
                 PortRisk.INFO -> FindingSeverity.INFO
             }
 
-            val description = buildString {
-                append("Port ${result.port} (${result.serviceName}) ist offen auf ${result.ip}.")
-                result.banner?.let {
-                    append(" Banner: \"${it.take(100)}\"")
-                }
-            }
+            val description = result.banner?.let { banner ->
+                UiText(R.string.f_port_open_desc_banner, result.port, result.serviceName, result.ip, banner.take(100))
+            } ?: UiText(R.string.f_port_open_desc, result.port, result.serviceName, result.ip)
 
-            val recommendation = when (result.port) {
-                23 -> "Telnet sofort deaktivieren und durch SSH ersetzen."
-                21 -> "FTP durch SFTP oder SCP ersetzen."
-                6379 -> "Redis: AUTH-Passwort setzen und Bind-Adresse einschränken."
-                27017 -> "MongoDB: Authentication aktivieren und Bind-Adresse einschränken."
-                3306 -> "MySQL: Nur auf localhost binden oder Firewall-Regel setzen."
-                5432 -> "PostgreSQL: pg_hba.conf prüfen, nur autorisierte IPs erlauben."
-                3389 -> "RDP: NLA aktivieren, starke Passwörter erzwingen, VPN vorschalten."
-                5900 -> "VNC: Starkes Passwort setzen, idealerweise nur über SSH-Tunnel."
-                445 -> "SMB: Nicht ins Internet exponieren, SMBv1 deaktivieren."
-                139 -> "NetBIOS: Falls nicht benötigt, deaktivieren."
-                1883 -> "MQTT: TLS und Authentication aktivieren."
-                9200 -> "Elasticsearch: X-Pack Security aktivieren oder Zugriff einschränken."
-                80 -> "HTTP: HTTPS erzwingen, HTTP auf 301-Redirect umstellen."
-                110 -> "POP3: Auf POP3S (Port 995) umstellen."
-                143 -> "IMAP: Auf IMAPS (Port 993) umstellen."
-                else -> "Prüfen ob der Dienst benötigt wird. Nicht benötigte Ports schließen."
-            }
+            val recommendation = UiText(
+                when (result.port) {
+                    23 -> R.string.f_port_rec_23
+                    21 -> R.string.f_port_rec_21
+                    6379 -> R.string.f_port_rec_6379
+                    27017 -> R.string.f_port_rec_27017
+                    3306 -> R.string.f_port_rec_3306
+                    5432 -> R.string.f_port_rec_5432
+                    3389 -> R.string.f_port_rec_3389
+                    5900 -> R.string.f_port_rec_5900
+                    445 -> R.string.f_port_rec_445
+                    139 -> R.string.f_port_rec_139
+                    1883 -> R.string.f_port_rec_1883
+                    9200 -> R.string.f_port_rec_9200
+                    80 -> R.string.f_port_rec_80
+                    110 -> R.string.f_port_rec_110
+                    143 -> R.string.f_port_rec_143
+                    else -> R.string.f_port_rec_default
+                }
+            )
 
             findings.add(SecurityFinding(
                 severity = severity,
                 category = FindingCategory.PORTS,
-                title = "${result.serviceName} offen (${risk.label})",
+                title = UiText(R.string.f_port_open_title, result.serviceName, UiText(risk.labelRes)),
                 description = description,
                 target = "${result.ip}:${result.port}",
-                recommendation = recommendation
+                recommendation = recommendation,
+                kind = "port-open",
             ))
 
             // Extra finding for banner with version info
@@ -332,10 +351,11 @@ object SecurityAuditor {
                     findings.add(SecurityFinding(
                         severity = FindingSeverity.INFO,
                         category = FindingCategory.PORTS,
-                        title = "Versions-Info exponiert",
-                        description = "${result.serviceName} auf ${result.ip} gibt Versionsinformationen preis: \"${banner.take(80)}\"",
+                        title = UiText(R.string.f_version_title),
+                        description = UiText(R.string.f_version_desc, result.serviceName, result.ip, banner.take(80)),
                         target = "${result.ip}:${result.port}",
-                        recommendation = "Server-Banner unterdrücken um Information Disclosure zu minimieren."
+                        recommendation = UiText(R.string.f_version_rec),
+                        kind = "version",
                     ))
                 }
             }
