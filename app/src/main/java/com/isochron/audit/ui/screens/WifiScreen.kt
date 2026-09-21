@@ -30,6 +30,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -235,6 +239,7 @@ private fun WifiGpsStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
+        val gpsLabel = "GPS Wardriving"
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BlinkingDot(color = if (gpsEnabled) Spectrum.Accent else Spectrum.OnSurfaceFaint, blink = gpsEnabled, size = 6.dp)
             Text(
@@ -242,7 +247,7 @@ private fun WifiGpsStrip(
                 else if (gpsEnabled) "GPS · warte auf Fix..."
                 else "GPS WARDRIVING",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = if (gpsEnabled) Spectrum.Accent else Spectrum.OnSurfaceDim,
                 letterSpacing = 0.1.em,
             )
@@ -251,9 +256,10 @@ private fun WifiGpsStrip(
             if (gpsEnabled && geoTagCount > 0) {
                 Box(
                     Modifier
+                        .minimumInteractiveComponentSize()
                         .clip(RoundedCornerShape(2.dp))
                         .border(1.dp, Spectrum.AccentDim, RoundedCornerShape(2.dp))
-                        .clickable { onExport() }
+                        .clickable(role = Role.Button) { onExport() }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.export_wardriving), tint = Spectrum.Accent, modifier = Modifier.size(12.dp))
@@ -262,7 +268,8 @@ private fun WifiGpsStrip(
             Switch(
                 checked = gpsEnabled,
                 onCheckedChange = onToggle,
-                modifier = Modifier.height(20.dp),
+                // Was forced to 20 dp — Switch brings its own 48 dp touch target.
+                modifier = Modifier.semantics { contentDescription = gpsLabel },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Spectrum.Surface,
                     checkedTrackColor = Spectrum.Accent,
@@ -293,7 +300,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable { onClick() }
+                .clickable(role = Role.Button) { onClick() }
                 .background(if (network.isConnected) Spectrum.Accent.copy(alpha = 0.04f) else Spectrum.Surface)
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -312,7 +319,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                     Text(
                         " dBm",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceDim,
                     )
                 }
@@ -354,7 +361,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                         network.vendor?.let { append(" · $it") }
                     },
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.04.em,
                     maxLines = 1,
@@ -367,7 +374,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                 Text(
                     "${if (risk) "⚠" else "•"} ${network.securityType}",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = if (risk) Spectrum.Danger else Spectrum.OnSurfaceDim,
                     letterSpacing = 0.1.em,
                     maxLines = 1,
@@ -376,7 +383,7 @@ private fun WifiRow(network: WifiNetwork, isFavorite: Boolean, onClick: () -> Un
                     Text(
                         "~${"%.1f".format(it)}m",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceFaint,
                     )
                 }

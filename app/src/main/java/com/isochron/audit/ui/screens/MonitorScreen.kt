@@ -30,6 +30,10 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.isochron.audit.R
 import androidx.compose.ui.text.font.FontWeight
@@ -252,7 +256,7 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
                 Text(
                     metric.label,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                 )
@@ -283,7 +287,12 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
                 color = metric.color,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp),
+                    .height(60.dp)
+                    // The numbers above are the readable form; the curve itself only
+                    // needs a name so TalkBack does not skip the chart silently.
+                    .semantics {
+                        contentDescription = "${metric.label}: ${metric.values.size} Messwerte, aktuell ${metric.currentStr} ${metric.unit}"
+                    },
             )
 
             Spacer(Modifier.height(4.dp))
@@ -296,13 +305,13 @@ private fun MonMetricCard(metric: MonMetric, modifier: Modifier = Modifier) {
                 Text(
                     text = avg?.let { "AVG ${"%.1f".format(it)}${metric.unit}" } ?: "AVG —",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                 )
                 Text(
                     "n=${metric.values.size}",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                 )
             }
@@ -382,10 +391,11 @@ private fun MonStartStopPill(running: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .clip(shape)
             .background(bg)
             .border(1.dp, border, shape)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
         if (running) BlinkingDot(color = fg, blink = true, size = 6.dp)

@@ -38,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -135,9 +137,10 @@ fun InventoryScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .clip(RoundedCornerShape(999.dp))
                         .border(1.dp, Spectrum.AccentDim, RoundedCornerShape(999.dp))
-                        .clickable { vm.showExportDialog = true }
+                        .clickable(role = Role.Button) { vm.showExportDialog = true }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
                     Icon(
@@ -295,7 +298,10 @@ private fun InvSearchBar(query: String, onQueryChange: (String) -> Unit) {
                     Icons.Outlined.Close,
                     contentDescription = stringResource(R.string.cd_clear),
                     tint = Spectrum.OnSurfaceDim,
-                    modifier = Modifier.size(14.dp).clickable { onQueryChange("") },
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .size(14.dp)
+                        .clickable(role = Role.Button) { onQueryChange("") },
                 )
             }
         }
@@ -340,10 +346,10 @@ private fun InvDeviceRow(
     }
 
     val categoryLabel = device.deviceCategory.shortName()
-    val icon: ImageVector = when (device.deviceCategory) {
-        DeviceCategory.WIFI -> Icons.Outlined.Wifi
-        DeviceCategory.BT_CLASSIC, DeviceCategory.BT_BLE, DeviceCategory.BT_DUAL -> Icons.Outlined.Bluetooth
-        DeviceCategory.LAN -> Icons.Outlined.Lan
+    val (icon, iconLabel) = when (device.deviceCategory) {
+        DeviceCategory.WIFI -> Icons.Outlined.Wifi to "WLAN"
+        DeviceCategory.BT_CLASSIC, DeviceCategory.BT_BLE, DeviceCategory.BT_DUAL -> Icons.Outlined.Bluetooth to "Bluetooth"
+        DeviceCategory.LAN -> Icons.Outlined.Lan to "LAN"
     }
 
     val context = LocalContext.current
@@ -366,7 +372,7 @@ private fun InvDeviceRow(
                     .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = null, tint = Spectrum.Accent, modifier = Modifier.size(16.dp))
+                Icon(icon, contentDescription = iconLabel, tint = Spectrum.Accent, modifier = Modifier.size(16.dp))
             }
 
             // Name + label + address/meta
@@ -387,8 +393,9 @@ private fun InvDeviceRow(
                         contentDescription = if (device.isFavorite) stringResource(R.string.cd_remove_fav) else stringResource(R.string.cd_add_fav),
                         tint = if (device.isFavorite) Spectrum.Accent else Spectrum.OnSurfaceFaint,
                         modifier = Modifier
+                            .minimumInteractiveComponentSize()
                             .size(16.dp)
-                            .clickable(onClick = onToggleFavorite),
+                            .clickable(role = Role.Button, onClick = onToggleFavorite),
                     )
                 }
                 device.customLabel?.let { label ->
@@ -396,7 +403,7 @@ private fun InvDeviceRow(
                         "\"$label\"",
                         color = Spectrum.Accent,
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         letterSpacing = 0.08.em,
                         maxLines = 1,
                     )
@@ -412,7 +419,7 @@ private fun InvDeviceRow(
                         }
                     },
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -424,13 +431,13 @@ private fun InvDeviceRow(
                 Text(
                     stringResource(R.string.inv_times_seen, device.timesSeen),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                 )
                 Text(
                     formatRelativeTime(device.lastSeen, context),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceFaint,
                 )
             }
@@ -592,9 +599,9 @@ private fun InvDeviceDetail(
             Text(
                 if (showRaw) "RAW METADATA ▼" else "RAW METADATA ▶",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceFaint,
-                modifier = Modifier.clickable { showRaw = !showRaw },
+                modifier = Modifier.clickable(role = Role.Button) { showRaw = !showRaw },
             )
             if (showRaw) {
                 Spacer(Modifier.height(4.dp))
@@ -602,7 +609,7 @@ private fun InvDeviceDetail(
                 Text(
                     formatted,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     lineHeight = 14.sp,
                 )
@@ -621,14 +628,14 @@ private fun InvDetailRow(label: String, value: String) {
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             modifier = Modifier.weight(0.42f),
         )
         Text(
             value,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurface,
             modifier = Modifier.weight(0.58f),
             textAlign = TextAlign.End,

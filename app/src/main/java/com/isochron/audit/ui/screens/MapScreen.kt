@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -555,7 +556,7 @@ private fun LegendRow(color: Color, label: String) {
                 label,
                 color = Spectrum.OnSurfaceDim,
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
         )
     }
 }
@@ -604,7 +605,7 @@ private fun MapDetailPanel(
                     stringResource(R.string.map_range_hint),
                     color = Spectrum.OnSurfaceDim,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
             )
         }
         Spacer(Modifier.height(10.dp))
@@ -614,13 +615,13 @@ private fun MapDetailPanel(
                         .background(Spectrum.SurfaceRaised)
                         .border(1.dp, Spectrum.GridLine, RoundedCornerShape(2.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
-                        .clickable { onClose() },
+                        .clickable(role = Role.Button) { onClose() },
         ) {
             Text(
                     stringResource(R.string.btn_close_upper),
                     color = Spectrum.OnSurfaceDim,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
             )
         }
     }
@@ -633,7 +634,7 @@ private fun DetailStat(label: String, value: String) {
                 label,
                 color = Spectrum.OnSurfaceDim,
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
         )
         Spacer(Modifier.height(2.dp))
         Text(

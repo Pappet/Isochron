@@ -37,6 +37,10 @@ import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -167,7 +171,7 @@ private fun LanProgressBar(progress: LanScanProgress) {
         Text(
             stringResource(R.string.lan_progress, progress.phase, progress.devicesFound),
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             letterSpacing = 0.1.em,
         )
@@ -214,18 +218,19 @@ private fun LanDeviceRow(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val icon: ImageVector = when {
-        device.isGateway -> Icons.Outlined.Router
-        device.isOwnDevice -> Icons.Outlined.PhoneAndroid
-        device.services.any { it.type.contains("printer") || it.type.contains("ipp") } -> Icons.Outlined.Print
-        device.services.any { it.type.contains("airplay") || it.type.contains("raop") } -> Icons.Outlined.Speaker
-        device.services.any { it.type.contains("googlecast") } -> Icons.Outlined.Cast
-        device.services.any { it.type.contains("smb") } -> Icons.Outlined.Storage
-        device.services.any { it.type.contains("ssh") } -> Icons.Outlined.Terminal
-        device.services.any { it.type.contains("http") } -> Icons.Outlined.Language
-        device.vendor?.contains("Raspberry", ignoreCase = true) == true -> Icons.Outlined.DeveloperBoard
-        device.vendor?.contains("ESP", ignoreCase = true) == true -> Icons.Outlined.Memory
-        else -> Icons.Outlined.Devices
+    // Icon plus a text alternative: the type is conveyed by the icon alone (audit D1).
+    val (icon, iconLabel) = when {
+        device.isGateway -> Icons.Outlined.Router to "Gateway"
+        device.isOwnDevice -> Icons.Outlined.PhoneAndroid to "Dieses Gerät"
+        device.services.any { it.type.contains("printer") || it.type.contains("ipp") } -> Icons.Outlined.Print to "Drucker"
+        device.services.any { it.type.contains("airplay") || it.type.contains("raop") } -> Icons.Outlined.Speaker to "Lautsprecher"
+        device.services.any { it.type.contains("googlecast") } -> Icons.Outlined.Cast to "Cast-Gerät"
+        device.services.any { it.type.contains("smb") } -> Icons.Outlined.Storage to "Dateiserver"
+        device.services.any { it.type.contains("ssh") } -> Icons.Outlined.Terminal to "SSH-Host"
+        device.services.any { it.type.contains("http") } -> Icons.Outlined.Language to "Webserver"
+        device.vendor?.contains("Raspberry", ignoreCase = true) == true -> Icons.Outlined.DeveloperBoard to "Raspberry Pi"
+        device.vendor?.contains("ESP", ignoreCase = true) == true -> Icons.Outlined.Memory to "ESP-Mikrocontroller"
+        else -> Icons.Outlined.Devices to "Gerät"
     }
 
     // Port scan results take priority; fall back to mDNS service ports
@@ -241,7 +246,7 @@ private fun LanDeviceRow(
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable(role = Role.Button) { expanded = !expanded }
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -257,7 +262,7 @@ private fun LanDeviceRow(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = null,
+                    contentDescription = iconLabel,
                     tint = Spectrum.Accent,
                     modifier = Modifier.size(16.dp),
                 )
@@ -292,7 +297,7 @@ private fun LanDeviceRow(
                 Text(
                     text = meta,
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -306,7 +311,7 @@ private fun LanDeviceRow(
                     Text(
                         "+${displayPorts.size - 4}",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceDim,
                         modifier = Modifier.align(Alignment.CenterVertically),
                     )
@@ -347,7 +352,7 @@ private fun LanPortChip(port: Int) {
             .padding(horizontal = 5.dp, vertical = 3.dp),
         color = if (risk) Spectrum.Warning else Spectrum.OnSurfaceDim,
         fontFamily = JetBrainsMonoFamily,
-        fontSize = 9.sp,
+        fontSize = 11.sp,
         letterSpacing = 0.04.em,
     )
 }
@@ -410,13 +415,14 @@ private fun LanDeviceDetail(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.detail_favorite), fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+            Text(stringResource(R.string.detail_favorite), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
             Box(
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .size(24.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-                    .clickable { onToggleFavorite() },
+                    .clickable(role = Role.Button) { onToggleFavorite() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -499,7 +505,7 @@ private fun LanDeviceDetail(
             Text(
                 stringResource(R.string.lan_port_scan_progress, portProgress.currentPort, (pct * 100).toInt(), portProgress.openPorts),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
             )
         }
@@ -512,7 +518,7 @@ private fun LanDeviceDetail(
             Text(
                 stringResource(R.string.lan_no_open_ports),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
             )
         }
@@ -529,13 +535,13 @@ private fun LanDetailRow(label: String, value: String) {
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
         )
         Text(
             value,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -554,7 +560,7 @@ private fun LanServiceRow(service: LanService) {
         Text(
             service.name.ifBlank { service.type },
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurface,
             modifier = Modifier.weight(1f),
             maxLines = 1,
@@ -563,7 +569,7 @@ private fun LanServiceRow(service: LanService) {
         Text(
             ":${service.port}",
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             modifier = Modifier.padding(start = 8.dp),
         )
@@ -590,17 +596,18 @@ private fun LanActionChip(
     }
     Box(
         modifier
+            .minimumInteractiveComponentSize()
             .clip(RoundedCornerShape(2.dp))
             .background(Spectrum.Surface)
             .border(1.dp, borderColor, RoundedCornerShape(2.dp))
-            .clickable(enabled = enabled) { onClick() }
+            .clickable(enabled = enabled, role = Role.Button) { onClick() }
             .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = textColor,
             letterSpacing = 0.1.em,
         )
@@ -634,14 +641,14 @@ private fun LanOpenPortRow(port: PortScanResult) {
             Text(
                 stringResource(R.string.lan_port_service, port.serviceName ?: "", WellKnownPorts.riskLevel(port.port).label),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurface,
             )
             port.banner?.let {
                 Text(
                     it.take(60),
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -652,23 +659,26 @@ private fun LanOpenPortRow(port: PortScanResult) {
             Text(
                 "${"%.0f".format(it)}ms",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
             )
         }
         WellKnownPorts.browseUrl(port)?.let { url ->
+            val openLabel = stringResource(R.string.cd_open_browser)
             Box(
                 Modifier
+                    .minimumInteractiveComponentSize()
                     .clip(RoundedCornerShape(2.dp))
                     .border(1.dp, Spectrum.GridLine, RoundedCornerShape(2.dp))
-                    .clickable {
+                    .clickable(role = Role.Button, onClickLabel = openLabel) {
                         try {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                         } catch (_: Exception) {}
                     }
+                    .semantics { contentDescription = openLabel }
                     .padding(horizontal = 5.dp, vertical = 3.dp),
             ) {
-                Text("↗", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = Spectrum.OnSurfaceDim)
+                Text("↗", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
             }
         }
     }

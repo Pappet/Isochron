@@ -10,10 +10,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +29,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import com.isochron.audit.R
@@ -49,7 +54,7 @@ fun SpectrumKicker(
         modifier = modifier,
         color = color,
         fontFamily = JetBrainsMonoFamily,
-        fontSize = 10.sp,
+        fontSize = 11.sp,
         letterSpacing = 0.18.em,
     )
 }
@@ -137,10 +142,11 @@ fun SpectrumScanButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .background(bg)
             .border(1.dp, borderColor, CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         BlinkingDot(color = fg, blink = scanning, size = 7.dp)
@@ -196,17 +202,20 @@ fun SpectrumFilterChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .clip(shape)
             .background(bg)
             .border(1.dp, borderColor, shape)
-            .clickable(onClick = onClick)
+            // Checkbox role: TalkBack announces the selection state, which is the
+            // whole point of a filter chip (audit D1).
+            .selectable(selected = selected, onClick = onClick, role = Role.Checkbox)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Text(
             label,
             color = fg,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             letterSpacing = 0.1.em,
         )
         if (count != null) {
@@ -214,7 +223,7 @@ fun SpectrumFilterChip(
                 count.toString(),
                 color = fg.copy(alpha = 0.6f),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
             )
         }
     }
@@ -249,7 +258,8 @@ fun SpectrumBottomNav(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { onSelect(t.key) }
+                        .minimumInteractiveComponentSize()
+                        .selectable(selected = isSel, onClick = { onSelect(t.key) }, role = Role.Tab)
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -265,7 +275,9 @@ fun SpectrumBottomNav(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = t.icon,
-                            contentDescription = t.label,
+                            // The label below carries the name; a description here
+                            // made TalkBack read "WIFI WIFI".
+                            contentDescription = null,
                             tint = color,
                             modifier = Modifier.size(16.dp),
                         )
@@ -274,7 +286,7 @@ fun SpectrumBottomNav(
                             t.label,
                             color = color,
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 8.sp,
+                            fontSize = 11.sp,
                             letterSpacing = 0.1.em,
                         )
                     }
@@ -362,7 +374,7 @@ fun SpectrumBanner(
         Text(
             text,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = color,
             modifier = Modifier.weight(1f),
         )
@@ -370,12 +382,13 @@ fun SpectrumBanner(
             Spacer(Modifier.width(12.dp))
             Box(
                 Modifier
+                    .minimumInteractiveComponentSize()
                     .clip(RoundedCornerShape(2.dp))
                     .border(1.dp, color, RoundedCornerShape(2.dp))
-                    .clickable { onAction() }
+                    .clickable(role = Role.Button) { onAction() }
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             ) {
-                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = color)
+                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = color)
             }
         }
     }

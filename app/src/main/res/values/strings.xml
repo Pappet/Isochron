@@ -328,4 +328,9 @@
     <string name="all_ports_confirm_title">Alle 65.535 Ports scannen?</string>
     <string name="all_ports_confirm_text">Der Scan von %1$s dauert je nach Netz mehrere Minuten und lässt sich jederzeit über „Abbrechen“ stoppen.</string>
     <string name="btn_start_scan">Scan starten</string>
+
+    <!-- Stufe 3: Text-Alternativen für Canvas-Grafiken -->
+    <string name="cd_audit_grade">Sicherheitsnote %1$s, %2$d von 100 Punkten</string>
+    <string name="cd_channel_chart">Kanalauslastung im %1$s-GHz-Band. Empfohlener Kanal %2$s mit %3$d Prozent Auslastung.</string>
+    <string name="cd_bt_radar">Bluetooth-Radar mit %1$d Geräten in der Nähe</string>
 </resources>

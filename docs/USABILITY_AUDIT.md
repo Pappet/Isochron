@@ -56,6 +56,21 @@ H3**. Auf einem Nothing A142P (Android 16) verifiziert.
   `onboarding_complete` aus dem Cloud-Backup zurück, sodass Neuinstallationen
   das Onboarding übersprangen (Commit 2ea0772).
 
+**Stufe 3 (Zugänglichkeit) ist umgesetzt** — Commit „feat: accessibility pass from
+the usability audit (Stufe 3)". Behoben: **D1, D2, D3, D4**.
+
+- **D2** über `Modifier.minimumInteractiveComponentSize()` als äußersten Modifier:
+  Layout reserviert 48 dp, die sichtbare Größe bleibt. Offen bleibt die
+  Bottom-Nav-**Breite** (45 dp bei 8 Tabs) — das löst erst F1.
+- **D1** Rollen: Bottom-Nav `selectable(role = Tab)`, Filter-Chips
+  `selectable(role = Checkbox)` mit Zustand, alle übrigen Klickflächen
+  `Role.Button`; Export-Optionen `toggleable`/`RadioButton`. Text-Alternativen für
+  Audit-Note, Kanaldiagramm, Radar, Sparklines und alle Gerätetyp-Icons.
+- **D3** `OnSurfaceFaint` auf `#718480` (5,05:1). `GridLine` unverändert — das
+  Design-System will ohnehin keine Trennlinien zwischen Listenzeilen (Stufe 4).
+- **D4** alle 8–10 sp auf 11 sp (80 Stellen); Severity-Badge auf 72 dp verbreitert,
+  damit „KRITISCH" einzeilig bleibt.
+
 Alle übrigen Befunde sind unverändert offen.
 
 ## Bewertungsskala
@@ -363,7 +378,7 @@ Statusleiste wirkt das wie eine fremde App.
 
 ## D — Barrierefreiheit
 
-### D1 (P0) — Keine einzige Semantik-Annotation in der App
+### D1 (P0) ✅ — Keine einzige Semantik-Annotation in der App
 
 ```
 grep -c "Role\."     → 0
@@ -387,7 +402,7 @@ Folgen:
   (`LanScreen.kt:249`, `InventoryScreen.kt:341`, `BluetoothScreen.kt:360`): Der
   Gerätetyp wird ausschließlich über das Icon vermittelt und geht verloren.
 
-### D2 (P0) — Fast alle Bedienelemente unterschreiten 48 dp
+### D2 (P0) ✅ (teilweise) — Fast alle Bedienelemente unterschreiten 48 dp
 
 Gemessen aus Padding + Schriftgröße; Material-3- und WCAG-2.5.5-Mindestmaß ist
 48×48 dp:
@@ -417,7 +432,7 @@ besonders heikel, weil 8 Tabs die Bildschirmbreite achteln.
 `.sizeIn(minWidth = 48.dp, minHeight = 48.dp)` auf alle Klickflächen — die
 visuelle Größe bleibt erhalten, nur der Trefferbereich wächst.
 
-### D3 (P1) — `OnSurfaceFaint` erreicht 2,01:1 statt 4,5:1
+### D3 (P1) ✅ — `OnSurfaceFaint` erreicht 2,01:1 statt 4,5:1
 
 Berechnete Kontraste der Palette gegen `Surface #07090A`:
 
@@ -441,7 +456,7 @@ Elemente sind damit faktisch unlesbar.
 `GridLine` als einziger Trenner zwischen Listeneinträgen liegt bei 1,21:1; die
 für Nicht-Text-Elemente geforderten 3:1 werden deutlich verfehlt.
 
-### D4 (P1) — Schriftgrößen von 8–10 sp als Regelfall
+### D4 (P1) ✅ — Schriftgrößen von 8–10 sp als Regelfall
 
 Bottom-Nav-Labels stehen auf **8 sp** (`SpectrumComponents.kt:277`), der
 Standardfall in Kickern, Chips, Metazeilen und Bannern ist 9–10 sp, zusätzlich mit
@@ -774,7 +789,7 @@ sorgfältig gemacht:
 12. **C6** `POST_NOTIFICATIONS` vor dem Servicestart prüfen
 13. **H3** OSM-User-Agent und Attribution
 
-### Stufe 3 — Zugänglichkeit
+### Stufe 3 — Zugänglichkeit — ✅ umgesetzt
 
 14. **D2** `minimumInteractiveComponentSize()` flächendeckend
 15. **D1** `Role`/`semantics` für die 52 Klickflächen, Canvas-Alternativtexte

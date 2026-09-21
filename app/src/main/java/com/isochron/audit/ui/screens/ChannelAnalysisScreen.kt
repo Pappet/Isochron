@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.isochron.audit.R
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
@@ -116,7 +118,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                 Text(
                     text = "UTILIZATION // DB/CH",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.sp,
                     modifier = Modifier.padding(bottom = 10.dp)
@@ -131,7 +133,8 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                         .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 10.dp)
                 ) {
                     val density = LocalDensity.current.density
-                    Canvas(modifier = Modifier.matchParentSize()) {
+                    val chartDescription = stringResource(R.string.cd_channel_chart, selectedBand, bestCh, bestUtil)
+                    Canvas(modifier = Modifier.matchParentSize().semantics { contentDescription = chartDescription }) {
                         // Background grid lines
                         val stepX = size.width / 10
                         val stepY = size.height / 4
@@ -173,7 +176,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                                     Text(
                                         text = "$util",
                                         fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 9.sp,
+                                        fontSize = 11.sp,
                                         color = tone,
                                         modifier = Modifier.padding(bottom = 3.dp)
                                     )
@@ -196,7 +199,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                                                 Text(
                                                     text = "${ch.networkCount}",
                                                     fontFamily = JetBrainsMonoFamily,
-                                                    fontSize = 9.sp,
+                                                    fontSize = 11.sp,
                                                     color = tone
                                                 )
                                             }
@@ -217,7 +220,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                                     modifier = Modifier.weight(1f),
                                     textAlign = TextAlign.Center,
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = if (ch.channel == bestCh) Spectrum.Accent else Spectrum.OnSurfaceDim
                                 )
                             }
@@ -248,7 +251,7 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                             Text(
                                 text = "RECOMMENDED",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 color = Spectrum.Accent,
                                 letterSpacing = 0.2.sp
                             )
@@ -292,15 +295,15 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(10.dp).background(Spectrum.Accent))
-                        Text(text = "CLEAR", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+                        Text(text = "CLEAR", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(10.dp).background(Spectrum.Warning))
-                        Text(text = "MED", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+                        Text(text = "MED", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(10.dp).background(Spectrum.Danger))
-                        Text(text = "CONGESTED", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = Spectrum.OnSurfaceDim)
+                        Text(text = "CONGESTED", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = Spectrum.OnSurfaceDim)
                     }
                 }
                 

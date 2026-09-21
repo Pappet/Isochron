@@ -24,6 +24,8 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,7 +76,7 @@ fun WifiDetailScreen(
                 Text(
                     "WIFI / DETAIL",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.18.em,
                 )
@@ -129,7 +131,7 @@ fun WifiDetailScreen(
                         Text(
                             "dBm · SIGNAL",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Spectrum.OnSurfaceDim,
                             letterSpacing = 0.2.em,
                             modifier = Modifier.padding(top = 2.dp),
@@ -148,7 +150,7 @@ fun WifiDetailScreen(
                 Text(
                     "SPECIFICATIONS",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Spectrum.OnSurfaceDim,
                     letterSpacing = 0.2.em,
                     modifier = Modifier.padding(bottom = 10.dp),
@@ -213,7 +215,7 @@ private fun SpecCell(label: String, value: String, modifier: Modifier = Modifier
         Text(
             label,
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = Spectrum.OnSurfaceDim,
             letterSpacing = 0.18.em,
         )
@@ -253,7 +255,7 @@ private fun RiskPanel(n: WifiNetwork) {
         Text(
             "⚠ RISK FLAG",
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = Spectrum.Danger,
             letterSpacing = 0.2.em,
         )
@@ -313,10 +315,11 @@ private fun IconSquareButton(
 ) {
     Box(
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .size(30.dp)
             .clip(RoundedCornerShape(4.dp))
             .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-            .clickable { onClick() },
+            .clickable(role = Role.Button) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(14.dp))

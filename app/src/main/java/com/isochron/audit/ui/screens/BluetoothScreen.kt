@@ -45,6 +45,10 @@ import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -196,7 +200,7 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
                     Text(
                         stringResource(R.string.nearby_count, devices.size),
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Spectrum.OnSurfaceDim,
                         letterSpacing = 0.18.em,
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
@@ -257,8 +261,10 @@ private fun BtRadar(
                 )
                 .border(1.dp, Spectrum.GridLine, CircleShape),
         ) {
-            // Rings + crosshair + sweep (Canvas)
-            Canvas(Modifier.fillMaxSize()) {
+            // Rings + crosshair + sweep (Canvas). The dots below are the real content;
+            // the radar itself just gets a name so it is not a silent blank area.
+            val radarDescription = stringResource(R.string.cd_bt_radar, devices.size)
+            Canvas(Modifier.fillMaxSize().semantics { contentDescription = radarDescription }) {
                 val cx = size.width / 2f
                 val cy = size.height / 2f
                 val radius = min(cx, cy)
@@ -328,9 +334,11 @@ private fun BtRadar(
                     modifier = Modifier
                         .align(Alignment.Center)
                         .offset(x = dxDp, y = dyDp)
+                        .minimumInteractiveComponentSize()
                         .size(baseBoxSize + sizeBoost)
                         .clip(CircleShape)
-                        .clickable { onSelect(d.address) },
+                        .clickable(role = Role.Button) { onSelect(d.address) }
+                        .semantics { contentDescription = d.name ?: d.address },
                     contentAlignment = Alignment.Center,
                 ) {
                     if (isSel) {
@@ -389,7 +397,7 @@ private fun BtSelectedPanel(
         ) {
             Icon(
                 btTypeIcon(device.minorClass),
-                contentDescription = null,
+                contentDescription = btTypeLabel(device.minorClass),
                 tint = Spectrum.Accent,
                 modifier = Modifier.size(28.dp),
             )
@@ -422,10 +430,11 @@ private fun BtSelectedPanel(
             }
             Box(
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .size(28.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-                    .clickable(onClick = onToggleFavorite),
+                    .clickable(role = Role.Button, onClick = onToggleFavorite),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -437,10 +446,11 @@ private fun BtSelectedPanel(
             }
             Box(
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .size(28.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
-                    .clickable { onClose() },
+                    .clickable(role = Role.Button) { onClose() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -479,7 +489,7 @@ private fun BtSelectedPanel(
                 .padding(top = 14.dp)
                 .fillMaxWidth()
                 .background(Spectrum.Accent, RoundedCornerShape(4.dp))
-                .clickable { onOpenGatt() }
+                .clickable(role = Role.Button) { onOpenGatt() }
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -523,14 +533,14 @@ private fun BtListRow(device: BluetoothDevice, isFavorite: Boolean, onClick: () 
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable(role = Role.Button) { onClick() }
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
             btTypeIcon(device.minorClass),
-            contentDescription = null,
+            contentDescription = btTypeLabel(device.minorClass),
             tint = Spectrum.OnSurfaceDim,
             modifier = Modifier.size(18.dp),
         )
@@ -557,7 +567,7 @@ private fun BtListRow(device: BluetoothDevice, isFavorite: Boolean, onClick: () 
             Text(
                 "${device.address} · ${device.type.displayName()}",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -595,6 +605,18 @@ private fun BtEmptyState(message: String) {
 private fun rssiPct(rssi: Int): Float {
     val clamped = max(-95, min(-30, rssi))
     return (clamped + 95) / 65f
+}
+
+/** Text alternative for [btTypeIcon]; the icon is the only place the type is shown. */
+private fun btTypeLabel(minorClass: String?): String = when (minorClass?.lowercase()) {
+    "headphones", "headset", "audio" -> "Audio"
+    "tv", "television" -> "TV"
+    "mouse" -> "Maus"
+    "tracker", "beacon" -> "Tracker"
+    "wearable", "watch", "smartwatch" -> "Wearable"
+    "iot" -> "IoT-Gerät"
+    "hub" -> "Hub"
+    else -> "Bluetooth-Gerät"
 }
 
 private fun btTypeIcon(minorClass: String?): ImageVector = when (minorClass?.lowercase()) {

@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -148,7 +149,7 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
             Text(
                 text = stringResource(R.string.onboarding_brand_tagline),
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = Spectrum.OnSurfaceDim,
                 letterSpacing = 0.28.em,
                 modifier = Modifier.padding(start = 14.dp, top = 4.dp)
@@ -271,7 +272,7 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Spectrum.Accent, RoundedCornerShape(4.dp))
-                .clickable {
+                .clickable(role = Role.Button) {
                     when {
                         isPermissionStep && permanentlyDenied -> context.openAppSettings()
                         isPermissionStep && !allGranted -> {
@@ -299,7 +300,7 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { vm.step = PERMISSION_STEP + 1 }
+                    .clickable(role = Role.Button) { vm.step = PERMISSION_STEP + 1 }
                     .padding(vertical = 14.dp, horizontal = 16.dp)
             ) {
                 Text(
@@ -316,7 +317,7 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { vm.step -= 1 }
+                    .clickable(role = Role.Button) { vm.step -= 1 }
                     .padding(vertical = 8.dp, horizontal = 16.dp)
                     .padding(top = 10.dp)
             ) {
