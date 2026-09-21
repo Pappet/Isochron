@@ -202,6 +202,7 @@ fun IsochronApp() {
                 ) {
                     DestinationPage(
                         destination = Destinations[page],
+                        isCurrent = page == pagerState.currentPage,
                         onOpenSettings = { showSettings = true },
                     )
                 }
@@ -222,10 +223,11 @@ fun IsochronApp() {
 }
 
 @Composable
-private fun DestinationPage(destination: Destination, onOpenSettings: () -> Unit) {
+private fun DestinationPage(destination: Destination, isCurrent: Boolean, onOpenSettings: () -> Unit) {
     var selected by rememberSaveable(destination.key) { mutableIntStateOf(0) }
     // Back from a secondary sub-tab returns to the first one before leaving the app.
-    BackHandler(enabled = selected != 0) { selected = 0 }
+    // Only the visible page may claim the key: the pager keeps neighbours composed.
+    BackHandler(enabled = isCurrent && selected != 0) { selected = 0 }
 
     Column(Modifier.fillMaxSize()) {
         SpectrumSubTabs(

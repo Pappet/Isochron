@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.AlertDialog
@@ -108,7 +110,14 @@ fun SettingsScreen(
         )
     }
 
-    Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Spectrum.Surface)
+            // Drawn over the pager: claim every pointer so a swipe on the header or
+            // a blank area cannot reach the pages underneath.
+            .pointerInput(Unit) { detectTapGestures { } },
+    ) {
         // Header
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
