@@ -1,9 +1,11 @@
 package com.isochron.audit.ui.screens
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.IBinder
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,6 +29,9 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.isochron.audit.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -40,6 +45,7 @@ import com.isochron.audit.ui.viewmodel.MonitorViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.Instant
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
     val context = LocalContext.current
@@ -70,6 +76,30 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
 
     val selectedInterval = vm.selectedInterval
 
+    fun startMonitoring() {
+        val srv = service
+        if (srv != null) {
+            srv.startMonitoring(selectedInterval)
+        } else {
+            context.startForegroundService(
+                Intent(context, ScanService::class.java).apply {
+                    action = ScanService.ACTION_START
+                    putExtra(ScanService.EXTRA_INTERVAL, selectedInterval)
+                }
+            )
+        }
+    }
+
+    // Without POST_NOTIFICATIONS (Android 13+) the foreground service runs invisibly:
+    // no status, no stop button. Gate the start on it (audit C6). Older releases need
+    // nothing, so the list is empty and the state reports "all granted".
+    val notificationPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        listOf(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        emptyList()
+    }
+    val notifPermissions = rememberScanPermissions(notificationPermissions) { startMonitoring() }
+
     fun toggle() {
         if (state.isRunning) {
             service?.stopMonitoring() ?: run {
@@ -78,17 +108,7 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
                 )
             }
         } else {
-            val srv = service
-            if (srv != null) {
-                srv.startMonitoring(selectedInterval)
-            } else {
-                context.startForegroundService(
-                    Intent(context, ScanService::class.java).apply {
-                        action = ScanService.ACTION_START
-                        putExtra(ScanService.EXTRA_INTERVAL, selectedInterval)
-                    }
-                )
-            }
+            notifPermissions.runOrRequest { startMonitoring() }
         }
     }
 
@@ -109,6 +129,12 @@ fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
             subtitle = "Live",
             stats = headerStats,
             trailing = { MonStartStopPill(running = state.isRunning, onClick = { toggle() }) },
+        )
+
+        PermissionBanner(
+            permissions = notifPermissions,
+            text = stringResource(R.string.perm_required_notif),
+            color = Spectrum.Warning,
         )
 
         if (!state.isRunning) {

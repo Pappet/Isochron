@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.isochron.audit.data.BluetoothDevice
 import com.isochron.audit.data.WifiNetwork
 import com.isochron.audit.ui.components.*
@@ -75,15 +74,10 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
             add(Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
+    val scanPermissions = rememberScanPermissions(permissions) { vm.runAudit() }
+    val wifiEnabled by vm.wifiEnabled.collectAsState()
 
-    fun runAudit() {
-        if (!permissionState.allPermissionsGranted) {
-            permissionState.launchMultiplePermissionRequest()
-            return
-        }
-        vm.runAudit()
-    }
+    fun runAudit() = scanPermissions.runOrRequest { vm.runAudit() }
 
     val r = report
     val headerStats = if (r != null) listOf(
@@ -105,6 +99,11 @@ fun SecurityAuditScreen(vm: SecurityAuditViewModel = viewModel()) {
                 onScan = ::runAudit,
                 stats = headerStats,
             )
+            PermissionBanner(
+                permissions = scanPermissions,
+                text = stringResource(R.string.perm_required_audit),
+            )
+            if (!wifiEnabled) WifiDisabledBanner(stringResource(R.string.wifi_disabled_audit))
         }
 
         // Progress bar while auditing

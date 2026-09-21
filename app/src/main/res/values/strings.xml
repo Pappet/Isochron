@@ -298,4 +298,34 @@
     <!-- Inventar: Löschbestätigung -->
     <string name="delete_confirm_title">Gerät löschen?</string>
     <string name="delete_confirm_text">„%1$s“ wird mit allen Notizen, Labels und der Historie endgültig aus dem Inventar entfernt.</string>
+
+    <!-- Stufe 2: Fehlerkanal (Snackbar) -->
+    <string name="err_wifi_scan">WLAN-Scan fehlgeschlagen.</string>
+    <string name="err_persist">Ergebnis konnte nicht gespeichert werden.</string>
+    <string name="err_lan_scan">LAN-Scan fehlgeschlagen: %1$s</string>
+    <string name="err_port_scan">Port-Scan fehlgeschlagen: %1$s</string>
+    <string name="err_export">Export fehlgeschlagen: %1$s</string>
+    <string name="err_channel_analysis">Kanalanalyse fehlgeschlagen.</string>
+    <string name="err_audit">Audit abgebrochen: %1$s</string>
+    <string name="err_audit_partial">Teil des Audits fehlgeschlagen: %1$s</string>
+    <string name="err_monitor_cycle">Monitoring-Messung fehlgeschlagen: %1$s</string>
+    <string name="err_wifi_off">WLAN ist aus — kein Scan möglich.</string>
+    <string name="err_unknown">Unbekannter Fehler</string>
+
+    <!-- Stufe 2: WLAN-Status -->
+    <string name="wifi_open_settings">WLAN-Einstellungen</string>
+    <string name="wifi_disabled_audit">WLAN ist deaktiviert. Der Audit findet keine Netze.</string>
+
+    <!-- Stufe 2: Berechtigungen je Tab -->
+    <string name="perm_required_channel">Standort-Berechtigung wird für die Kanalanalyse benötigt.</string>
+    <string name="perm_required_audit">Standort- und Bluetooth-Berechtigungen werden für den Audit benötigt.</string>
+    <string name="perm_required_notif">Ohne Benachrichtigungs-Berechtigung läuft das Monitoring unsichtbar — kein Status, kein Stopp-Knopf.</string>
+
+    <!-- Stufe 2: Scan-Abbruch -->
+    <string name="btn_stop">Stopp</string>
+    <string name="chip_cancel_port_scan">Abbrechen</string>
+    <string name="lan_scan_cancelled">Scan abgebrochen.</string>
+    <string name="all_ports_confirm_title">Alle 65.535 Ports scannen?</string>
+    <string name="all_ports_confirm_text">Der Scan von %1$s dauert je nach Netz mehrere Minuten und lässt sich jederzeit über „Abbrechen“ stoppen.</string>
+    <string name="btn_start_scan">Scan starten</string>
 </resources>

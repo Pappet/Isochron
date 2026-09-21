@@ -15,6 +15,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.isochron.audit.data.WifiNetwork
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Utility class for performing WiFi scans and retrieving information about the current connection.
@@ -159,6 +163,35 @@ class WifiScanner(private val context: Context) {
             false
         }
     }
+
+    /**
+     * Emits the adapter state whenever it changes, starting with the current value.
+     *
+     * Screens that read [isWifiEnabled] during composition only notice a toggle on the
+     * next unrelated recomposition; collecting this flow keeps a "Wi-Fi is off" banner
+     * honest.
+     */
+    fun wifiEnabledFlow(): Flow<Boolean> = callbackFlow {
+        trySend(isWifiEnabled())
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                trySend(isWifiEnabled())
+            }
+        }
+        val filter = IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+        awaitClose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: IllegalArgumentException) {
+                // Already unregistered
+            }
+        }
+    }.distinctUntilChanged()
 
     /**
      * Unregisters any active [BroadcastReceiver] and cancels pending timeout callbacks.

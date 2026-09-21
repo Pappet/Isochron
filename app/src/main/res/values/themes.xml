@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Spectrum" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Dark parent + opaque dark window background: no white flash before Compose
+         draws, and light status-bar icons on the near-black surface (audit D6). -->
+    <style name="Theme.Spectrum" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/spectrum_surface</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

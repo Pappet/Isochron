@@ -34,8 +34,10 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -109,7 +111,12 @@ fun LanScreen(vm: LanViewModel = viewModel()) {
                 HeaderStat(subnet, stringResource(R.string.stat_subnet)),
             ),
             trailing = {
-                SpectrumScanButton(scanning = isScanning, onClick = { vm.scan() })
+                // Running scan → the same pill becomes STOPP (audit A4).
+                SpectrumScanButton(
+                    scanning = isScanning,
+                    label = if (isScanning) stringResource(R.string.btn_stop) else null,
+                    onClick = { if (isScanning) vm.cancelScan() else vm.scan() },
+                )
             },
         )
 
@@ -129,10 +136,12 @@ fun LanScreen(vm: LanViewModel = viewModel()) {
                         portResults = portScanResults[device.ip] ?: emptyList(),
                         hasBeenPortScanned = device.ip in portScanResults,
                         isPortScanning = portScanningIp == device.ip,
+                        portScanBusy = portScanningIp != null,
                         portProgress = if (portScanningIp == device.ip) portScanProgress else null,
                         isFavorite = isFavorite,
                         onToggleFavorite = { vm.toggleFavorite(address) },
                         onPortScan = { ports -> vm.startPortScan(device.ip, ports) },
+                        onCancelPortScan = { vm.cancelPortScan() },
                     )
                     HairlineHorizontal()
                 }
@@ -196,10 +205,12 @@ private fun LanDeviceRow(
     portResults: List<PortScanResult>,
     hasBeenPortScanned: Boolean,
     isPortScanning: Boolean,
+    portScanBusy: Boolean,
     portProgress: PortScanProgress?,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPortScan: (List<Int>) -> Unit,
+    onCancelPortScan: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -309,10 +320,12 @@ private fun LanDeviceRow(
                 portResults = portResults,
                 hasBeenPortScanned = hasBeenPortScanned,
                 isPortScanning = isPortScanning,
+                portScanBusy = portScanBusy,
                 portProgress = portProgress,
                 isFavorite = isFavorite,
                 onToggleFavorite = onToggleFavorite,
                 onPortScan = onPortScan,
+                onCancelPortScan = onCancelPortScan,
             )
         }
     }
@@ -345,11 +358,36 @@ private fun LanDeviceDetail(
     portResults: List<PortScanResult>,
     hasBeenPortScanned: Boolean,
     isPortScanning: Boolean,
+    portScanBusy: Boolean,
     portProgress: PortScanProgress?,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPortScan: (List<Int>) -> Unit,
+    onCancelPortScan: () -> Unit,
 ) {
+    // "Alle Ports" is 65 535 connection attempts; ask before starting (audit A4).
+    var confirmAllPorts by remember { mutableStateOf(false) }
+    if (confirmAllPorts) {
+        AlertDialog(
+            onDismissRequest = { confirmAllPorts = false },
+            containerColor = Spectrum.SurfaceRaised,
+            titleContentColor = Spectrum.OnSurface,
+            textContentColor = Spectrum.OnSurfaceDim,
+            title = { Text(stringResource(R.string.all_ports_confirm_title)) },
+            text = { Text(stringResource(R.string.all_ports_confirm_text, device.ip)) },
+            confirmButton = {
+                TextButton(onClick = { confirmAllPorts = false; onPortScan(WellKnownPorts.ALL_PORTS) }) {
+                    Text(stringResource(R.string.btn_start_scan), color = Spectrum.Danger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmAllPorts = false }) {
+                    Text(stringResource(R.string.btn_cancel), color = Spectrum.OnSurface)
+                }
+            },
+        )
+    }
+
     Column(
         Modifier
             .fillMaxWidth()
@@ -421,19 +459,33 @@ private fun LanDeviceDetail(
         )
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(
-                stringResource(R.string.chip_top20) to WellKnownPorts.QUICK_20,
-                stringResource(R.string.chip_top50) to WellKnownPorts.TOP_50,
-                stringResource(R.string.chip_top200) to WellKnownPorts.TOP_200,
-                stringResource(R.string.chip_all_ports) to WellKnownPorts.ALL_PORTS,
-            ).forEach { (label, ports) ->
+            if (isPortScanning) {
                 LanActionChip(
-                    label = label,
-                    enabled = !isPortScanning,
-                    danger = label == stringResource(R.string.chip_all_ports),
-                    onClick = { onPortScan(ports) },
+                    label = stringResource(R.string.chip_cancel_port_scan),
+                    enabled = true,
+                    danger = true,
+                    onClick = onCancelPortScan,
                     modifier = Modifier.weight(1f),
                 )
+            } else {
+                val allPortsLabel = stringResource(R.string.chip_all_ports)
+                listOf(
+                    stringResource(R.string.chip_top20) to WellKnownPorts.QUICK_20,
+                    stringResource(R.string.chip_top50) to WellKnownPorts.TOP_50,
+                    stringResource(R.string.chip_top200) to WellKnownPorts.TOP_200,
+                    allPortsLabel to WellKnownPorts.ALL_PORTS,
+                ).forEach { (label, ports) ->
+                    val isAllPorts = label == allPortsLabel
+                    LanActionChip(
+                        label = label,
+                        // Disabled on every device while any port scan runs: a second
+                        // scan used to silently overwrite the first one (audit A5).
+                        enabled = !portScanBusy,
+                        danger = isAllPorts,
+                        onClick = { if (isAllPorts) confirmAllPorts = true else onPortScan(ports) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
 

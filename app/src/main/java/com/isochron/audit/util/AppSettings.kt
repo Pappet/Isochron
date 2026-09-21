@@ -29,3 +29,17 @@ fun Context.openAppSettings() {
         Log.e(TAG, "No activity available to open app settings", e)
     }
 }
+
+/**
+ * Opens the system Wi-Fi settings so the user can switch the adapter on. Apps cannot
+ * toggle Wi-Fi themselves since Android 10, so this is the only actionable fix we can
+ * offer from a "Wi-Fi is off" banner.
+ */
+fun Context.openWifiSettings() {
+    val intent = Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Log.e(TAG, "No activity available to open Wi-Fi settings", e)
+    }
+}

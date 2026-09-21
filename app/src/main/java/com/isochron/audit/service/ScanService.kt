@@ -206,6 +206,7 @@ class ScanService : Service() {
             updateNotification(notifText)
         } catch (e: Exception) {
             android.util.Log.e("ScanService", "Error in monitoring cycle", e)
+            com.isochron.audit.ui.UiMessageBus.postError(com.isochron.audit.R.string.err_monitor_cycle, e)
         }
     }
 

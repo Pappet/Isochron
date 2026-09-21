@@ -33,11 +33,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,22 +48,24 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.isochron.audit.R
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.ui.UiMessageBus
 import com.isochron.audit.ui.components.BlinkingDot
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
+import com.isochron.audit.ui.components.PermissionBanner
 import com.isochron.audit.ui.components.SignalTrace
 import com.isochron.audit.ui.components.SpectrumFilterChip
 import com.isochron.audit.ui.components.SpectrumHeader
 import com.isochron.audit.ui.components.SpectrumKicker
 import com.isochron.audit.ui.components.SpectrumScanButton
+import com.isochron.audit.ui.components.WifiDisabledBanner
+import com.isochron.audit.ui.components.rememberScanPermissions
 import com.isochron.audit.ui.components.rssiColor
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
 import com.isochron.audit.ui.viewmodel.WifiViewModel
-import com.isochron.audit.util.openAppSettings
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -90,19 +89,8 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
-
-    // Android silently ignores a request once the user denied twice. Without knowing
-    // that we already asked, the banner button would stay a no-op forever.
-    var permissionRequested by rememberSaveable { mutableStateOf(false) }
-    val permanentlyDenied = permissionRequested &&
-        !permissionState.allPermissionsGranted &&
-        !permissionState.shouldShowRationale
-
-    fun requestPermissions() {
-        permissionRequested = true
-        permissionState.launchMultiplePermissionRequest()
-    }
+    val scanPermissions = rememberScanPermissions(permissions) { vm.scan() }
+    val wifiEnabled by vm.wifiEnabled.collectAsState()
 
     val displayed = remember(networks, filter) {
         networks.filter { n ->
@@ -146,10 +134,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             kicker = "WIFI",
             subtitle = "Airspace",
             scanning = isScanning,
-            onScan = {
-                if (!permissionState.allPermissionsGranted) requestPermissions()
-                else vm.scan()
-            },
+            onScan = { scanPermissions.runOrRequest { vm.scan() } },
             stats = if (hasScanned) listOf(
                 HeaderStat(networks.size.toString(), "found"),
                 HeaderStat(count24.toString(), "2.4GHz"),
@@ -158,34 +143,12 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             ) else emptyList(),
         )
 
-        // Permission banner
-        if (!permissionState.allPermissionsGranted) {
-            WifiBanner(
-                text = if (permanentlyDenied) {
-                    stringResource(R.string.perm_denied_permanently)
-                } else {
-                    stringResource(R.string.perm_required_title) + " — " +
-                        stringResource(R.string.perm_required_desc)
-                },
-                color = Spectrum.Danger,
-                action = if (permanentlyDenied) {
-                    stringResource(R.string.perm_open_settings)
-                } else {
-                    stringResource(R.string.perm_grant_btn)
-                },
-                onAction = {
-                    if (permanentlyDenied) context.openAppSettings() else requestPermissions()
-                },
-            )
-        }
-
-        // WiFi disabled banner
-        if (!vm.isWifiEnabled()) {
-            WifiBanner(
-                text = stringResource(R.string.wifi_disabled_warn),
-                color = Spectrum.Warning,
-            )
-        }
+        PermissionBanner(
+            permissions = scanPermissions,
+            text = stringResource(R.string.perm_required_title) + " — " +
+                stringResource(R.string.perm_required_desc),
+        )
+        if (!wifiEnabled) WifiDisabledBanner()
 
         // Filter chips
         Row(
@@ -232,6 +195,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
                         context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.export_wardriving)))
                     } catch (e: Exception) {
                         android.util.Log.e("WifiScreen", "Export error", e)
+                        UiMessageBus.postError(R.string.err_export, e)
                     }
                 }
             },
@@ -254,45 +218,6 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
 }
 
 // ── Sub-composables ──────────────────────────────────────────
-
-@Composable
-private fun WifiBanner(
-    text: String,
-    color: androidx.compose.ui.graphics.Color,
-    action: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(color.copy(alpha = 0.06f))
-            .border(width = 0.dp, color = androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text,
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
-            color = color,
-            modifier = Modifier.weight(1f),
-        )
-        if (action != null && onAction != null) {
-            Spacer(Modifier.width(12.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(2.dp))
-                    .border(1.dp, color, RoundedCornerShape(2.dp))
-                    .clickable { onAction() }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = color)
-            }
-        }
-    }
-    HairlineHorizontal(color = color.copy(alpha = 0.2f))
-}
 
 @Composable
 private fun WifiGpsStrip(

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.isochron.audit.R
 import com.isochron.audit.data.BluetoothDevice
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.ui.UiMessageBus
 import com.isochron.audit.util.BluetoothScanner
 import com.isochron.audit.util.PingUtil
 import com.isochron.audit.util.PortScanProgress
@@ -20,6 +21,9 @@ import com.isochron.audit.util.SecurityAuditor
 import com.isochron.audit.util.WellKnownPorts
 import com.isochron.audit.util.WifiScanner
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -37,6 +41,9 @@ class SecurityAuditViewModel(app: Application) : AndroidViewModel(app) {
     var auditPhase by mutableStateOf("")
     var portScanProgress by mutableStateOf<PortScanProgress?>(null)
 
+    val wifiEnabled: StateFlow<Boolean> = wifiScanner.wifiEnabledFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), wifiScanner.isWifiEnabled())
+
     fun runAudit() {
         isAuditing = true
         val context = getApplication<Application>()
@@ -48,7 +55,11 @@ class SecurityAuditViewModel(app: Application) : AndroidViewModel(app) {
                     val deferred = kotlinx.coroutines.CompletableDeferred<List<WifiNetwork>>()
                     wifiScanner.startScan { results -> deferred.complete(results) }
                     kotlinx.coroutines.withTimeoutOrNull(10_000L) { deferred.await() } ?: emptyList()
-                } catch (e: Exception) { Log.e("SecurityAudit", "WiFi scan error", e); emptyList() }
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "WiFi scan error", e)
+                    UiMessageBus.post(R.string.err_audit_partial, "WLAN")
+                    emptyList()
+                }
 
                 auditPhase = context.getString(R.string.audit_phase_bt)
                 btDevices = try {
@@ -63,7 +74,11 @@ class SecurityAuditViewModel(app: Application) : AndroidViewModel(app) {
                         onComplete = { results -> deferred.complete(results) }
                     )
                     kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() } ?: emptyList()
-                } catch (e: Exception) { Log.e("SecurityAudit", "BT scan error", e); emptyList() }
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "BT scan error", e)
+                    UiMessageBus.post(R.string.err_audit_partial, "Bluetooth")
+                    emptyList()
+                }
 
                 try {
                     val gateway = pingUtil.getNetworkInfo().gatewayIp
@@ -79,7 +94,10 @@ class SecurityAuditViewModel(app: Application) : AndroidViewModel(app) {
                         )
                         withContext(Dispatchers.Main) { openPorts = scanResults }
                     }
-                } catch (e: Exception) { Log.e("SecurityAudit", "Port scan error", e) }
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "Port scan error", e)
+                    UiMessageBus.post(R.string.err_audit_partial, "Port-Scan")
+                }
 
                 auditPhase = context.getString(R.string.audit_phase_report)
                 report = try {
@@ -89,9 +107,14 @@ class SecurityAuditViewModel(app: Application) : AndroidViewModel(app) {
                         openPorts = openPorts,
                         connectedSsid = wifiScanner.getConnectedSsid()
                     )
-                } catch (e: Exception) { Log.e("SecurityAudit", "Report error", e); null }
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "Report error", e)
+                    UiMessageBus.postError(R.string.err_audit, e)
+                    null
+                }
             } catch (e: Exception) {
                 Log.e("SecurityAudit", "Audit error", e)
+                UiMessageBus.postError(R.string.err_audit, e)
             } finally {
                 isAuditing = false
                 auditPhase = ""

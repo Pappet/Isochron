@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors Spectrum.Surface in Color.kt; used only for the pre-Compose window background. -->
+    <color name="spectrum_surface">#FF07090A</color>
+</resources>

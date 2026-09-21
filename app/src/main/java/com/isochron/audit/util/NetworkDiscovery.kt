@@ -129,6 +129,8 @@ class NetworkDiscovery(private val context: Context) {
             onProgress(LanScanProgress("mDNS-Dienste suchen...", 4, 5, discoveredDevices.size))
             try {
                 discoverMdnsServices(onDeviceFound)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("NetworkDiscovery", "mDNS error", e)
             }
@@ -138,6 +140,8 @@ class NetworkDiscovery(private val context: Context) {
             try {
                 discoverUpnpDevices()
                 onDeviceFound(getDeviceList())
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("NetworkDiscovery", "UPnP error", e)
             }
@@ -145,6 +149,8 @@ class NetworkDiscovery(private val context: Context) {
             // Mark gateway and own device
             markSpecialDevices(networkInfo)
             onDeviceFound(getDeviceList())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("NetworkDiscovery", "Error in fullScan", e)
         }
@@ -531,6 +537,8 @@ class NetworkDiscovery(private val context: Context) {
                 }
                 jobs.awaitAll()
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("NetworkDiscovery", "SSDP discovery error", e)
         }

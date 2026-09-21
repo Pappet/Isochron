@@ -27,9 +27,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import androidx.compose.ui.res.stringResource
+import com.isochron.audit.R
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
+import com.isochron.audit.ui.components.PermissionBanner
+import com.isochron.audit.ui.components.WifiDisabledBanner
+import com.isochron.audit.ui.components.rememberScanPermissions
 import com.isochron.audit.ui.components.SpectrumFilterChip
 import com.isochron.audit.ui.components.SpectrumHeader
 import com.isochron.audit.ui.components.utilColor
@@ -56,16 +60,8 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
-
-    fun doScan() {
-        if (!vm.wifiScanner.isWifiEnabled()) return
-        if (!permissionState.allPermissionsGranted) {
-            permissionState.launchMultiplePermissionRequest()
-            return
-        }
-        vm.doScan()
-    }
+    val scanPermissions = rememberScanPermissions(permissions) { vm.doScan() }
+    val wifiEnabled by vm.wifiEnabled.collectAsState()
 
     val channels = if (selectedBand == "2.4") analysis?.channels24 else analysis?.channels5
     val recommendations = if (selectedBand == "2.4") analysis?.recommendations24 else analysis?.recommendations5
@@ -79,13 +75,19 @@ fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
             kicker = "SPECTRUM",
             subtitle = "Channel Analysis",
             scanning = isScanning,
-            onScan = { doScan() },
+            onScan = { scanPermissions.runOrRequest { vm.doScan() } },
             stats = listOf(
                 HeaderStat(value = "CH$bestCh", label = "recommended"),
                 HeaderStat(value = "$bestUtil%", label = "utilization"),
                 HeaderStat(value = "${channels?.size ?: 0}", label = "channels")
             )
         )
+
+        PermissionBanner(
+            permissions = scanPermissions,
+            text = stringResource(R.string.perm_required_channel),
+        )
+        if (!wifiEnabled) WifiDisabledBanner()
 
         Row(
             modifier = Modifier

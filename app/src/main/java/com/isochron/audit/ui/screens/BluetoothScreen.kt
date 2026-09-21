@@ -49,10 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,7 +59,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import com.isochron.audit.R
@@ -74,12 +70,14 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.isochron.audit.data.BluetoothDevice
 import com.isochron.audit.data.BondState
 import com.isochron.audit.data.DeviceType
 import com.isochron.audit.ui.components.HairlineHorizontal
 import com.isochron.audit.ui.components.HeaderStat
+import com.isochron.audit.ui.components.PermissionBanner
+import com.isochron.audit.ui.components.SpectrumBanner
+import com.isochron.audit.ui.components.rememberScanPermissions
 import com.isochron.audit.ui.components.SpectrumHeader
 import com.isochron.audit.ui.components.SpectrumKicker
 import com.isochron.audit.ui.components.rssiColor
@@ -87,7 +85,6 @@ import com.isochron.audit.ui.theme.InterFamily
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
 import com.isochron.audit.ui.viewmodel.BluetoothViewModel
-import com.isochron.audit.util.openAppSettings
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -112,19 +109,7 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
-    val permissionState = rememberMultiplePermissionsState(permissions)
-    val context = LocalContext.current
-
-    // See WifiScreen: once denied twice, Android drops the request silently.
-    var permissionRequested by rememberSaveable { mutableStateOf(false) }
-    val permanentlyDenied = permissionRequested &&
-        !permissionState.allPermissionsGranted &&
-        !permissionState.shouldShowRationale
-
-    fun requestPermissions() {
-        permissionRequested = true
-        permissionState.launchMultiplePermissionRequest()
-    }
+    val scanPermissions = rememberScanPermissions(permissions) { vm.scan() }
 
     LaunchedEffect(gattState.connectionState, vm.gattAddress) {
         val addr = vm.gattAddress
@@ -165,9 +150,7 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
             kicker = "BLUETOOTH",
             subtitle = stringResource(R.string.bt_radar_title),
             scanning = isScanning,
-            onScan = {
-                if (!permissionState.allPermissionsGranted) requestPermissions() else vm.scan()
-            },
+            onScan = { scanPermissions.runOrRequest { vm.scan() } },
             stats = if (hasScanned) listOf(
                 HeaderStat(devices.size.toString(), stringResource(R.string.stat_devices)),
                 HeaderStat(bondedCount.toString(), stringResource(R.string.stat_bonded)),
@@ -175,27 +158,12 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
             ) else emptyList(),
         )
 
-        // Permission / disabled banners
-        if (!permissionState.allPermissionsGranted) {
-            BtBanner(
-                text = if (permanentlyDenied) {
-                    stringResource(R.string.perm_denied_permanently)
-                } else {
-                    stringResource(R.string.bt_perm_required)
-                },
-                color = Spectrum.Danger,
-                action = if (permanentlyDenied) {
-                    stringResource(R.string.perm_open_settings)
-                } else {
-                    stringResource(R.string.btn_allow)
-                },
-                onAction = {
-                    if (permanentlyDenied) context.openAppSettings() else requestPermissions()
-                },
-            )
-        }
+        PermissionBanner(
+            permissions = scanPermissions,
+            text = stringResource(R.string.bt_perm_required),
+        )
         if (!vm.isBluetoothEnabled()) {
-            BtBanner(
+            SpectrumBanner(
                 text = stringResource(R.string.bt_disabled),
                 color = Spectrum.Warning,
             )
@@ -604,44 +572,6 @@ private fun BtListRow(device: BluetoothDevice, isFavorite: Boolean, onClick: () 
             )
         }
     }
-}
-
-@Composable
-private fun BtBanner(
-    text: String,
-    color: Color,
-    action: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(color.copy(alpha = 0.06f))
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text,
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp,
-            color = color,
-            modifier = Modifier.weight(1f),
-        )
-        if (action != null && onAction != null) {
-            Spacer(Modifier.width(12.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(2.dp))
-                    .border(1.dp, color, RoundedCornerShape(2.dp))
-                    .clickable { onAction() }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = color)
-            }
-        }
-    }
-    HairlineHorizontal(color = color.copy(alpha = 0.2f))
 }
 
 @Composable

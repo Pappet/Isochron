@@ -6,10 +6,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.isochron.audit.R
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.ui.UiMessageBus
 import com.isochron.audit.data.repository.DeviceRepository
 import com.isochron.audit.util.WardrivingTracker
 import com.isochron.audit.util.WifiScanner
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class WifiViewModel(app: Application) : AndroidViewModel(app) {
@@ -33,10 +38,15 @@ class WifiViewModel(app: Application) : AndroidViewModel(app) {
     var filter by mutableStateOf("all")
     var selectedNetwork by mutableStateOf<WifiNetwork?>(null)
 
-    fun isWifiEnabled(): Boolean = wifiScanner.isWifiEnabled()
+    /** Live adapter state so the "Wi-Fi off" banner follows the system toggle. */
+    val wifiEnabled: StateFlow<Boolean> = wifiScanner.wifiEnabledFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), wifiScanner.isWifiEnabled())
 
     fun scan() {
-        if (!wifiScanner.isWifiEnabled()) return
+        if (!wifiScanner.isWifiEnabled()) {
+            UiMessageBus.post(R.string.err_wifi_off)
+            return
+        }
         isScanning = true
         val startTime = System.currentTimeMillis()
         wifiScanner.startScan { results ->
@@ -57,6 +67,7 @@ class WifiViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 } catch (e: Exception) {
                     android.util.Log.e("WifiViewModel", "Error persisting scan", e)
+                    UiMessageBus.post(R.string.err_persist)
                 }
             }
         }

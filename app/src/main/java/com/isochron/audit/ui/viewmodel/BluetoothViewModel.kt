@@ -51,6 +51,7 @@ class BluetoothViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     } catch (e: Exception) {
                         android.util.Log.e("BluetoothViewModel", "Error persisting scan", e)
+                        com.isochron.audit.ui.UiMessageBus.post(com.isochron.audit.R.string.err_persist)
                     }
                 }
             },

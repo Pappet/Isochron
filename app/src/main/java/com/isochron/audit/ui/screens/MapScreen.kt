@@ -65,6 +65,7 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
@@ -322,8 +323,9 @@ private fun SpectrumMapView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 Configuration.getInstance().apply {
+                    // OSM tile policy requires an identifying UA; a placeholder gets blocked.
                     userAgentValue =
-                            "Isochron/${BuildConfig.VERSION_NAME} (Android; +https://github.com/TODO_REPLACE/Isochron)"
+                            "Isochron/${BuildConfig.VERSION_NAME} (Android; +https://github.com/Pappet/Isochron)"
                     osmdroidBasePath = ctx.filesDir
                     osmdroidTileCache = ctx.filesDir.resolve("osmdroid/tiles")
                 }
@@ -333,6 +335,14 @@ private fun SpectrumMapView(
                     controller.setZoom(17.5)
                     overlayManager.tilesOverlay.setColorFilter(DarkTilesFilter)
                     setBackgroundColor(Spectrum.Surface.toArgb())
+                    // ODbL attribution ("© OpenStreetMap contributors") — required.
+                    overlays.add(
+                            CopyrightOverlay(ctx).apply {
+                                setTextColor(Spectrum.OnSurfaceDim.toArgb())
+                                setAlignBottom(true)
+                                setAlignRight(true)
+                            }
+                    )
                 }
             },
             update = { map ->
@@ -369,7 +379,8 @@ private fun rebuildOverlays(
         selectedBssid: String?,
         onSelect: (String?) -> Unit,
 ) {
-    map.overlays.clear()
+    // Keep the attribution; only the data overlays are rebuilt.
+    map.overlays.removeAll { it !is CopyrightOverlay }
 
     scanPoints.forEach { sp ->
         val ringRadius = tickRingMeters(sp.devices.size)

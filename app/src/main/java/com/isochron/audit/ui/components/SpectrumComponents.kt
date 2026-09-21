@@ -338,3 +338,46 @@ fun HairlineHorizontal(color: Color = Spectrum.GridLine, modifier: Modifier = Mo
             .background(color),
     )
 }
+
+/**
+ * Full-width notice strip below the header: tinted background, monospace text and an
+ * optional outlined action on the right. Used for permission, adapter-off and similar
+ * blocking states.
+ */
+@Composable
+fun SpectrumBanner(
+    text: String,
+    color: Color,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.06f))
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = color,
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null && onAction != null) {
+            Spacer(Modifier.width(12.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(1.dp, color, RoundedCornerShape(2.dp))
+                    .clickable { onAction() }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = color)
+            }
+        }
+    }
+    HairlineHorizontal(color = color.copy(alpha = 0.2f))
+}

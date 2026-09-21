@@ -1,7 +1,9 @@
 package com.isochron.audit
 
+import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -23,13 +25,18 @@ import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.isochron.audit.ui.UiMessageBus
 import com.isochron.audit.ui.components.SpectrumBottomNav
 import com.isochron.audit.ui.components.SpectrumTab
 import com.isochron.audit.ui.screens.BluetoothScreen
@@ -40,8 +47,11 @@ import com.isochron.audit.ui.screens.MapScreen
 import com.isochron.audit.ui.screens.MonitorScreen
 import com.isochron.audit.ui.screens.SecurityAuditScreen
 import com.isochron.audit.ui.screens.WifiScreen
+import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.SpectrumTheme
 import com.isochron.audit.ui.theme.Spectrum
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
 import kotlinx.coroutines.launch
 
 /**
@@ -51,7 +61,12 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The app is dark-only. The default `auto` style follows the system theme and
+        // paints dark status-bar icons on our near-black surface (audit D6).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+        )
         setContent {
             SpectrumTheme {
                 IsochronApp()
@@ -89,12 +104,30 @@ fun IsochronApp() {
 
     val pagerState = rememberPagerState(pageCount = { SpectrumTabs.size })
     val scope = rememberCoroutineScope()
+
+    // Single sink for every ViewModel/service error (audit C1).
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        UiMessageBus.messages.collect { message ->
+            snackbarHostState.showSnackbar(message.resolve(context))
+        }
+    }
     val selectedKey = remember(pagerState.currentPage) {
         SpectrumTabs[pagerState.currentPage].key
     }
 
     Scaffold(
         containerColor = Spectrum.Surface,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    containerColor = Spectrum.SurfaceHi,
+                    contentColor = Spectrum.OnSurface,
+                ) {
+                    Text(data.visuals.message, fontFamily = JetBrainsMonoFamily, fontSize = 11.sp)
+                }
+            }
+        },
         bottomBar = {
             SpectrumBottomNav(
                 tabs = SpectrumTabs,

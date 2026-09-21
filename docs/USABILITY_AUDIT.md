@@ -43,6 +43,19 @@ erwartet werden sollten:
 - Der **KML-Wardriving-Export färbt Marker anders**: WPA3-Netze bekamen bisher
   die rote „open"-Farbe, jetzt die grüne „wpa3"-Farbe.
 
+**Stufe 2 (Verlässlichkeit) ist umgesetzt** — Commit „feat: reliability pass from
+the usability audit (Stufe 2)". Behoben: **A3 (Rest), A4, A5, C1, C2, C3, C6, D6,
+H3**. Auf einem Nothing A142P (Android 16) verifiziert.
+
+- **C1** über einen prozessweiten `UiMessageBus` statt eines Flows je ViewModel:
+  die App hat genau ein Scaffold, dort hängt die Snackbar.
+- **H3** nur User-Agent und `CopyrightOverlay`; Zoom-Buttons, Maßstab und
+  „auf meine Position" bleiben offen.
+- Beim Test aufgefallen und mitbehoben: das Onboarding fragte
+  `NEARBY_WIFI_DEVICES` nicht ab, und `allowBackup="true"` spielte
+  `onboarding_complete` aus dem Cloud-Backup zurück, sodass Neuinstallationen
+  das Onboarding übersprangen (Commit 2ea0772).
+
 Alle übrigen Befunde sind unverändert offen.
 
 ## Bewertungsskala
@@ -121,7 +134,7 @@ auslöst. Folgen:
 `permissionState.allPermissionsGranted`; bei Ablehnung einen erklärenden
 Zwischenschritt mit „Trotzdem fortfahren" / „Erneut fragen" anbieten.
 
-### A3 (P0) ✅ (teilweise) — Sackgasse bei dauerhaft abgelehnter Berechtigung
+### A3 (P0) ✅ — Sackgasse bei dauerhaft abgelehnter Berechtigung
 
 `WifiScreen.kt:147-155`, `BluetoothScreen.kt:161-168`, analog in Channel-Analysis
 und Security-Audit: Der Banner-Button ruft immer
@@ -136,7 +149,7 @@ Einstellungen → Apps → Berechtigungen wird nirgends angeboten.
 `Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)` umschalten, Button-Text
 „Einstellungen öffnen".
 
-### A4 (P1) — Kein Abbruch für laufende Scans
+### A4 (P1) ✅ — Kein Abbruch für laufende Scans
 
 `LanViewModel.kt:44-68` und `startPortScan:70-88`: `discovery.stopScan()` wird
 ausschließlich in `onCleared()` gerufen. Während eines Scans ist der Scan-Button
@@ -150,7 +163,7 @@ die einzige Warnung.
 **Empfehlung:** Scan-Button während des Laufs zu „STOPP" umschalten; für „ALLE
 PORTS" einen Bestätigungsdialog mit Dauerhinweis.
 
-### A5 (P1) — Zweiter Port-Scan überschreibt den ersten
+### A5 (P1) ✅ — Zweiter Port-Scan überschreibt den ersten
 
 `LanScreen.kt` übergibt `enabled = !isPortScanning`, wobei
 `isPortScanning = portScanningIp == device.ip` (Zeile 128). Die Chips **anderer**
@@ -276,7 +289,7 @@ nur dekorativ.
 
 ## C — Feedback & Fehlerzustände
 
-### C1 (P0) — 47 Fehlerpfade, 1 Fehlermeldung
+### C1 (P0) ✅ — 47 Fehlerpfade, 1 Fehlermeldung
 
 `grep -c "Log.e"` → **47**. `grep -c "Toast\|Snackbar"` → **2** (beides im
 Export-Dialog). Alles andere scheitert lautlos:
@@ -292,7 +305,7 @@ Export-Dialog). Alles andere scheitert lautlos:
 **Empfehlung:** Einen Fehlerkanal (`SharedFlow<UiMessage>`) je ViewModel, im
 Scaffold als Snackbar anzeigen.
 
-### C2 (P0) — Der Scan-Button ist tot, wenn WLAN aus ist
+### C2 (P0) ✅ — Der Scan-Button ist tot, wenn WLAN aus ist
 
 `WifiViewModel.kt:38-39`: `fun scan() { if (!wifiScanner.isWifiEnabled()) return ... }`
 — kein State wird gesetzt, kein Fehler gemeldet. In `ChannelAnalysisScreen.kt:62`
@@ -307,7 +320,7 @@ nächsten Recomposition aus anderem Grund.
 **Empfehlung:** WLAN-Status als `StateFlow` aus einem `BroadcastReceiver` auf
 `WIFI_STATE_CHANGED_ACTION`; Banner mit Aktion „WLAN-Einstellungen öffnen".
 
-### C3 (P1) — Erster Tap fordert nur an, zweiter scannt
+### C3 (P1) ✅ — Erster Tap fordert nur an, zweiter scannt
 
 `WifiScreen.kt:134-137`, `BluetoothScreen.kt:148-152`,
 `ChannelAnalysisScreen.kt:63-66`: Bei fehlender Berechtigung wird angefordert und
@@ -332,7 +345,7 @@ Hinweisbanner.
 Ping-Sweep über 254 Adressen ist der Fortschritt praktisch unsichtbar. Der
 Security-Audit macht es mit 2 dp (`SecurityAuditScreen.kt:118`) kaum besser.
 
-### C6 (P1) — Monitoring startet ohne Benachrichtigungsberechtigung
+### C6 (P1) ✅ — Monitoring startet ohne Benachrichtigungsberechtigung
 
 `MonitorScreen.kt:73-93` startet den Foreground-Service ohne Prüfung von
 `POST_NOTIFICATIONS`. Ab Android 13 ist die Berechtigung optional — wurde sie im
@@ -442,7 +455,7 @@ keine dynamischen Farben. Als Designentscheidung nachvollziehbar, in der
 Hauptnutzungssituation dieser App (Wardriving, Außenbereich, Sonnenlicht) jedoch
 die schlechteste Wahl. Mindestens erwähnenswert als bewusste Einschränkung.
 
-### D6 (P1) — Statusleisten-Icons sind auf Schwarz unsichtbar
+### D6 (P1) ✅ — Statusleisten-Icons sind auf Schwarz unsichtbar
 
 `res/values/themes.xml`:
 
@@ -656,7 +669,7 @@ wird daher vom Pager abgefangen und wechselt den Tab, statt zu schwenken.
 *Gerätetest empfohlen* — der genaue Punkt, an dem der Pager die Geste übernimmt,
 hängt vom Touch-Slop ab.
 
-### H3 (P1) — OSM-Attribution fehlt, User-Agent ist ein Platzhalter
+### H3 (P1) ✅ (teilweise) — OSM-Attribution fehlt, User-Agent ist ein Platzhalter
 
 `MapScreen.kt:323`:
 
@@ -752,7 +765,7 @@ sorgfältig gemacht:
 
 *Alle sieben sind kleine, lokal begrenzte Änderungen.*
 
-### Stufe 2 — Verlässlichkeit
+### Stufe 2 — Verlässlichkeit — ✅ umgesetzt
 
 8. **C1** Fehlerkanal + Snackbar statt 47 stiller `Log.e`
 9. **C2** WLAN-Status reaktiv, Banner mit Aktion
