@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -264,6 +265,8 @@ fun MapScreen(vm: MapViewModel = viewModel()) {
 
     val totalDevices = devices.size
     val pointCount = scanPoints.size
+
+    BackHandler(enabled = selectedBssid != null) { vm.selectedBssid = null }
 
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         SpectrumHeader(

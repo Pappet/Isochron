@@ -2,6 +2,7 @@ package com.isochron.audit.ui.screens
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,8 +33,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,12 +66,8 @@ import com.isochron.audit.ui.components.rssiColor
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
 import com.isochron.audit.ui.viewmodel.WifiViewModel
+import com.isochron.audit.util.openAppSettings
 import kotlinx.coroutines.launch
-
-private fun WifiNetwork.isRisk() =
-    securityType.equals("Open", ignoreCase = true) ||
-    securityType.contains("WEP", ignoreCase = true) ||
-    wpsEnabled
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -92,11 +92,24 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
 
+    // Android silently ignores a request once the user denied twice. Without knowing
+    // that we already asked, the banner button would stay a no-op forever.
+    var permissionRequested by rememberSaveable { mutableStateOf(false) }
+    val permanentlyDenied = permissionRequested &&
+        !permissionState.allPermissionsGranted &&
+        !permissionState.shouldShowRationale
+
+    fun requestPermissions() {
+        permissionRequested = true
+        permissionState.launchMultiplePermissionRequest()
+    }
+
     val displayed = remember(networks, filter) {
         networks.filter { n ->
             when (filter) {
                 "2.4" -> n.band.contains("2.4")
-                "5"   -> n.band.contains("5")
+                "5"   -> n.band.contains("5 GHz")
+                "6"   -> n.band.contains("6 GHz")
                 "risk" -> n.isRisk()
                 else  -> true
             }
@@ -107,7 +120,8 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
     // Ensure `isRisk` and counts are memoized correctly (already done nicely here!).
     val riskCount   = remember(networks) { networks.count { it.isRisk() } }
     val count24     = remember(networks) { networks.count { it.band.contains("2.4") } }
-    val count5      = remember(networks) { networks.count { it.band.contains("5") } }
+    val count5      = remember(networks) { networks.count { it.band.contains("5 GHz") } }
+    val count6      = remember(networks) { networks.count { it.band.contains("6 GHz") } }
 
     val favorites by vm.repository.observeFavorites().collectAsState(initial = emptyList())
     // ⚡ Bolt Performance Optimization:
@@ -115,6 +129,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
     val favoriteAddresses = remember(favorites) { favorites.map { it.address }.toSet() }
 
     vm.selectedNetwork?.let { network ->
+        BackHandler { vm.selectedNetwork = null }
         val favEntity by vm.repository.observeDeviceByAddress(network.bssid).collectAsState(initial = null)
         WifiDetailScreen(
             network = network,
@@ -132,7 +147,7 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             subtitle = "Airspace",
             scanning = isScanning,
             onScan = {
-                if (!permissionState.allPermissionsGranted) permissionState.launchMultiplePermissionRequest()
+                if (!permissionState.allPermissionsGranted) requestPermissions()
                 else vm.scan()
             },
             stats = if (hasScanned) listOf(
@@ -146,11 +161,21 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
         // Permission banner
         if (!permissionState.allPermissionsGranted) {
             WifiBanner(
-                text = stringResource(R.string.perm_required_title) + " — " +
-                       stringResource(R.string.perm_required_desc),
+                text = if (permanentlyDenied) {
+                    stringResource(R.string.perm_denied_permanently)
+                } else {
+                    stringResource(R.string.perm_required_title) + " — " +
+                        stringResource(R.string.perm_required_desc)
+                },
                 color = Spectrum.Danger,
-                action = stringResource(R.string.perm_grant_btn),
-                onAction = { permissionState.launchMultiplePermissionRequest() },
+                action = if (permanentlyDenied) {
+                    stringResource(R.string.perm_open_settings)
+                } else {
+                    stringResource(R.string.perm_grant_btn)
+                },
+                onAction = {
+                    if (permanentlyDenied) context.openAppSettings() else requestPermissions()
+                },
             )
         }
 
@@ -173,6 +198,11 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             SpectrumFilterChip("ALL",    filter == "all",  { vm.filter = "all" },  count = networks.size)
             SpectrumFilterChip("2.4GHZ", filter == "2.4",  { vm.filter = "2.4" },  count = count24)
             SpectrumFilterChip("5GHZ",   filter == "5",    { vm.filter = "5" },    count = count5)
+            // Keep the chip while it is the active filter, so a rescan without 6 GHz
+            // networks cannot strand the user in a filter they can no longer clear.
+            if (count6 > 0 || filter == "6") {
+                SpectrumFilterChip("6GHZ", filter == "6",  { vm.filter = "6" },  count = count6)
+            }
             SpectrumFilterChip("⚠ RISK", filter == "risk", { vm.filter = "risk" }, count = riskCount)
         }
         HairlineHorizontal()

@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Looper
 import android.util.Log
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.data.WifiSecurity
 import java.io.File
 import java.io.FileOutputStream
 import java.time.Instant
@@ -25,6 +26,7 @@ data class WardrivingEntry(
         val frequency: Int,
         val channel: Int,
         val securityType: String,
+        val security: WifiSecurity = WifiSecurity.UNKNOWN,
         val latitude: Double,
         val longitude: Double,
         val altitude: Double?,
@@ -143,6 +145,7 @@ class WardrivingTracker(private val context: Context) {
                             frequency = network.frequency,
                             channel = network.channel,
                             securityType = network.securityType,
+                            security = network.security,
                             latitude = location.latitude,
                             longitude = location.longitude,
                             altitude = if (location.hasAltitude()) location.altitude else null,
@@ -234,13 +237,13 @@ class WardrivingTracker(private val context: Context) {
 
             for ((bssid, entry) in uniqueByBssid) {
                 val style =
-                        when (entry.securityType) {
-                            "Offen" -> "open"
-                            "WEP" -> "wep"
-                            "WPA" -> "wpa"
-                            "WPA2" -> "wpa2"
-                            "WPA3" -> "wpa3"
-                            else -> "wpa2"
+                        when (entry.security) {
+                            WifiSecurity.OPEN -> "open"
+                            WifiSecurity.WEP -> "wep"
+                            WifiSecurity.WPA -> "wpa"
+                            WifiSecurity.WPA3 -> "wpa3"
+                            // OWE is encrypted, so it does not belong with the open markers.
+                            WifiSecurity.WPA2, WifiSecurity.OWE, WifiSecurity.UNKNOWN -> "wpa2"
                         }
 
                 writer.write(

@@ -2,6 +2,7 @@ package com.isochron.audit.ui.screens
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,6 +34,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
+import com.isochron.audit.util.openAppSettings
 import androidx.compose.ui.unit.em
 
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +65,16 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
     }
     
     val permissionState = rememberMultiplePermissionsState(permissions)
+    val context = LocalContext.current
+
+    // Whether we already showed the system dialog in this run. Android answers a
+    // second denial by dropping the request silently, so without this flag the CTA
+    // would become a button that does nothing.
+    var permissionRequested by rememberSaveable { mutableStateOf(false) }
+
+    val allGranted = permissionState.allPermissionsGranted
+    val deniedAfterRequest = permissionRequested && !allGranted
+    val permanentlyDenied = deniedAfterRequest && !permissionState.shouldShowRationale
 
     val steps = listOf(
         StepData(
@@ -89,6 +103,19 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
     )
 
     val s = steps[step]
+    val lastStep = steps.size - 1
+    val isPermissionStep = step == PERMISSION_STEP
+
+    // Advance only after the user actually answered the dialog — never in the same
+    // click that opened it, which used to put the system prompt on top of the
+    // final screen and hid the outcome entirely.
+    LaunchedEffect(allGranted, permissionRequested) {
+        if (permissionRequested && allGranted && vm.step == PERMISSION_STEP) {
+            vm.step = PERMISSION_STEP + 1
+        }
+    }
+
+    BackHandler(enabled = step > 0) { vm.step -= 1 }
 
     Column(
         modifier = Modifier
@@ -217,34 +244,71 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
 
         Spacer(modifier = Modifier.weight(1f))
 
+        // On the permission step the outcome decides what the button does: ask,
+        // send the user to the settings once asking stopped working, or move on.
+        val ctaLabel = when {
+            !isPermissionStep -> s.cta
+            allGranted -> stringResource(R.string.onboarding_cta_continue)
+            permanentlyDenied -> stringResource(R.string.perm_open_settings)
+            else -> s.cta
+        }
+
+        if (isPermissionStep && deniedAfterRequest) {
+            Text(
+                text = stringResource(R.string.onboarding_perm_denied_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = Spectrum.Warning,
+                lineHeight = 16.8.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Spectrum.Accent, RoundedCornerShape(4.dp))
                 .clickable {
-                    if (step == 1) {
-                        if (!permissionState.allPermissionsGranted) {
+                    when {
+                        isPermissionStep && permanentlyDenied -> context.openAppSettings()
+                        isPermissionStep && !allGranted -> {
+                            permissionRequested = true
                             permissionState.launchMultiplePermissionRequest()
                         }
-                    }
-                    if (step < steps.size - 1) {
-                        vm.step += 1
-                    } else {
-                        onDone()
+                        step < lastStep -> vm.step += 1
+                        else -> onDone()
                     }
                 }
                 .padding(vertical = 16.dp)
         ) {
             Text(
-                text = s.cta,
+                text = ctaLabel,
                 style = MaterialTheme.typography.labelMedium,
                 color = Color(0xFF07090A),
                 letterSpacing = 2.sp
             )
         }
 
-        if (step in 1 until steps.size - 1) {
+        // Escape hatch: the app stays usable without every permission, it just
+        // returns empty scans — so never trap the user on this step.
+        if (isPermissionStep && deniedAfterRequest) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.step = PERMISSION_STEP + 1 }
+                    .padding(vertical = 14.dp, horizontal = 16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.onboarding_cta_skip_perms),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Spectrum.OnSurfaceDim,
+                    letterSpacing = 1.6.sp
+                )
+            }
+        }
+
+        if (step > 0) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -263,6 +327,9 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
         }
     }
 }
+
+/** Index of the permission step inside the onboarding sequence. */
+private const val PERMISSION_STEP = 1
 
 private data class StepData(
     val kicker: String,

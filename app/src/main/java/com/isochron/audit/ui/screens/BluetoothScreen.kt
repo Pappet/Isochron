@@ -2,6 +2,7 @@ package com.isochron.audit.ui.screens
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -48,7 +49,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,6 +87,7 @@ import com.isochron.audit.ui.theme.InterFamily
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
 import com.isochron.audit.ui.viewmodel.BluetoothViewModel
+import com.isochron.audit.util.openAppSettings
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -108,6 +113,18 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
+    val context = LocalContext.current
+
+    // See WifiScreen: once denied twice, Android drops the request silently.
+    var permissionRequested by rememberSaveable { mutableStateOf(false) }
+    val permanentlyDenied = permissionRequested &&
+        !permissionState.allPermissionsGranted &&
+        !permissionState.shouldShowRationale
+
+    fun requestPermissions() {
+        permissionRequested = true
+        permissionState.launchMultiplePermissionRequest()
+    }
 
     LaunchedEffect(gattState.connectionState, vm.gattAddress) {
         val addr = vm.gattAddress
@@ -119,6 +136,7 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
 
     // GATT detail takes over the screen
     if (vm.gattAddress != null) {
+        BackHandler { vm.closeGatt() }
         GattDetailView(
             state = gattState,
             onDisconnect = { vm.closeGatt() },
@@ -140,15 +158,15 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
     val favoriteAddresses = remember(favorites) { favorites.map { it.address }.toSet() }
     val sortedDevices = remember(devices) { devices.sortedByDescending { it.rssi ?: -120 } }
 
+    BackHandler(enabled = vm.selectedAddress != null) { vm.selectedAddress = null }
+
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         SpectrumHeader(
             kicker = "BLUETOOTH",
             subtitle = stringResource(R.string.bt_radar_title),
             scanning = isScanning,
             onScan = {
-                if (!permissionState.allPermissionsGranted)
-                    permissionState.launchMultiplePermissionRequest()
-                else if (permissionState.allPermissionsGranted) vm.scan()
+                if (!permissionState.allPermissionsGranted) requestPermissions() else vm.scan()
             },
             stats = if (hasScanned) listOf(
                 HeaderStat(devices.size.toString(), stringResource(R.string.stat_devices)),
@@ -160,10 +178,20 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
         // Permission / disabled banners
         if (!permissionState.allPermissionsGranted) {
             BtBanner(
-                text = stringResource(R.string.bt_perm_required),
+                text = if (permanentlyDenied) {
+                    stringResource(R.string.perm_denied_permanently)
+                } else {
+                    stringResource(R.string.bt_perm_required)
+                },
                 color = Spectrum.Danger,
-                action = stringResource(R.string.btn_allow),
-                onAction = { permissionState.launchMultiplePermissionRequest() },
+                action = if (permanentlyDenied) {
+                    stringResource(R.string.perm_open_settings)
+                } else {
+                    stringResource(R.string.btn_allow)
+                },
+                onAction = {
+                    if (permanentlyDenied) context.openAppSettings() else requestPermissions()
+                },
             )
         }
         if (!vm.isBluetoothEnabled()) {

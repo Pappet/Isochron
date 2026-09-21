@@ -287,4 +287,15 @@
     <string name="lan_port_scan_progress">Port %1$d · %2$d%% · %3$d open</string>
     <string name="lan_no_open_ports">No open ports found.</string>
     <string name="lan_port_service">%1$s · %2$s</string>
+    <!-- Permissions: permanent denial -->
+    <string name="perm_denied_permanently">Permission denied permanently. Please grant it in the system settings.</string>
+    <string name="perm_open_settings">Open settings</string>
+
+    <!-- Onboarding: permission request outcome -->
+    <string name="onboarding_perm_denied_hint">Not all permissions were granted. Without them, scan results stay empty.</string>
+    <string name="onboarding_cta_skip_perms">Continue anyway</string>
+
+    <!-- Inventory: delete confirmation -->
+    <string name="delete_confirm_title">Delete device?</string>
+    <string name="delete_confirm_text">“%1$s” will be permanently removed from the inventory, together with all notes, labels and history.</string>
 </resources>

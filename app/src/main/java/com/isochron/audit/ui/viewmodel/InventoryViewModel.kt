@@ -16,5 +16,9 @@ class InventoryViewModel(app: Application) : AndroidViewModel(app) {
     var searchQuery by mutableStateOf("")
 
     var editDialogDevice by mutableStateOf<DiscoveredDeviceEntity?>(null)
+
+    /** Device awaiting delete confirmation; deletion is irreversible and has no undo. */
+    var deleteDialogDevice by mutableStateOf<DiscoveredDeviceEntity?>(null)
+
     var showExportDialog by mutableStateOf(false)
 }

@@ -1,6 +1,45 @@
 package com.isochron.audit.data
 
 /**
+ * Link-layer security standard of a WiFi network.
+ *
+ * This is the value all risk logic must branch on. [WifiNetwork.securityType] carries
+ * the human-readable label for the same information and must never be string-compared:
+ * it is localized and carries cipher/enterprise detail, so equality checks against it
+ * silently stop matching.
+ */
+enum class WifiSecurity {
+    /** No link-layer encryption at all. */
+    OPEN,
+
+    /** WEP — broken, crackable in minutes. */
+    WEP,
+
+    /** WPA1 / TKIP era — deprecated. */
+    WPA,
+
+    /** WPA2 (RSN), personal or enterprise. */
+    WPA2,
+
+    /** WPA3 (SAE), including WPA2/WPA3 transition mode. */
+    WPA3,
+
+    /** Opportunistic Wireless Encryption — unauthenticated but encrypted. */
+    OWE,
+
+    /** Capabilities were unavailable, so the standard could not be determined. */
+    UNKNOWN;
+
+    /** True when traffic travels unencrypted over the air. */
+    val isUnencrypted: Boolean
+        get() = this == OPEN
+
+    /** True when the standard itself is broken or deprecated. */
+    val isDeprecated: Boolean
+        get() = this == WEP || this == WPA
+}
+
+/**
  * Generic model for a discovered WiFi network, used by [WifiScanner].
  */
 data class WifiNetwork(
@@ -9,16 +48,24 @@ data class WifiNetwork(
     val signalStrength: Int,       // Signal level in dBm
     val frequency: Int,            // Frequency in MHz
     val channel: Int,              // Channel number
-    val securityType: String,      // Localized name of the encryption type
+    val securityType: String,      // Localized display label of the encryption type
+    val security: WifiSecurity = WifiSecurity.UNKNOWN, // Machine-readable counterpart; branch on this
     val isConnected: Boolean = false,
-    val band: String,              // "2.4 GHz" or "5 GHz"
+    val band: String,              // "2.4 GHz", "5 GHz" or "6 GHz"
     val wpsEnabled: Boolean = false,
     val rawCapabilities: String = "",
     val vendor: String? = null,
     val wifiStandard: String? = null,
     val channelWidth: String? = null,
     val distance: Double? = null  // Estimated distance in meters (FSPL)
-)
+) {
+    /**
+     * True when the network is worth flagging to the user: no encryption,
+     * a broken standard, or WPS left enabled.
+     */
+    fun isRisk(): Boolean =
+        security.isUnencrypted || security.isDeprecated || wpsEnabled
+}
 
 /**
  * Generic model for a discovered Bluetooth device (Classic or BLE).

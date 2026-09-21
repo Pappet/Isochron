@@ -31,12 +31,14 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -184,7 +186,7 @@ fun InventoryScreen(
                         device = device,
                         onToggleFavorite = { scope.launch { repository.toggleFavorite(device.id) } },
                         onEdit = { vm.editDialogDevice = device },
-                        onDelete = { scope.launch { repository.deleteDevice(device.id) } },
+                        onDelete = { vm.deleteDialogDevice = device },
                     )
                     HairlineHorizontal()
                 }
@@ -203,6 +205,32 @@ fun InventoryScreen(
                     repository.setNotes(device.id, notes.ifBlank { null })
                 }
                 vm.editDialogDevice = null
+            },
+        )
+    }
+
+    vm.deleteDialogDevice?.let { device ->
+        AlertDialog(
+            onDismissRequest = { vm.deleteDialogDevice = null },
+            containerColor = Spectrum.SurfaceRaised,
+            titleContentColor = Spectrum.OnSurface,
+            textContentColor = Spectrum.OnSurfaceDim,
+            title = { Text(stringResource(R.string.delete_confirm_title)) },
+            text = { Text(stringResource(R.string.delete_confirm_text, device.displayName())) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch { repository.deleteDevice(device.id) }
+                        vm.deleteDialogDevice = null
+                    },
+                ) {
+                    Text(stringResource(R.string.str_delete), color = Spectrum.Danger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.deleteDialogDevice = null }) {
+                    Text(stringResource(R.string.btn_cancel), color = Spectrum.OnSurface)
+                }
             },
         )
     }

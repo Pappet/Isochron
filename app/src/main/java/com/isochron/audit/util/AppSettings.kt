@@ -1,0 +1,31 @@
+package com.isochron.audit.util
+
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.util.Log
+
+private const val TAG = "AppSettings"
+
+/**
+ * Opens this app's entry in the system settings, on the permission page when the
+ * device supports it.
+ *
+ * Needed whenever a permission was denied permanently: Android then silently ignores
+ * further `requestPermissions` calls, so the in-app prompt becomes a dead button and
+ * the system settings are the only remaining way to grant it.
+ */
+fun Context.openAppSettings() {
+    val intent = Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.fromParts("package", packageName, null),
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    try {
+        startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Log.e(TAG, "No activity available to open app settings", e)
+    }
+}

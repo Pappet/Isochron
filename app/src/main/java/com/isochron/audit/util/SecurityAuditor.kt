@@ -1,6 +1,7 @@
 package com.isochron.audit.util
 
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.data.WifiSecurity
 import com.isochron.audit.data.BluetoothDevice
 import com.isochron.audit.data.BondState
 
@@ -142,7 +143,7 @@ object SecurityAuditor {
             val isConnected = network.isConnected
 
             // Open network (no encryption)
-            if (network.securityType == "Offen") {
+            if (network.security.isUnencrypted) {
                 findings.add(SecurityFinding(
                     severity = if (isConnected) FindingSeverity.CRITICAL else FindingSeverity.HIGH,
                     category = FindingCategory.WIFI,
@@ -154,7 +155,7 @@ object SecurityAuditor {
             }
 
             // WEP encryption
-            if (network.securityType == "WEP") {
+            if (network.security == WifiSecurity.WEP) {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.CRITICAL,
                     category = FindingCategory.WIFI,
@@ -166,7 +167,7 @@ object SecurityAuditor {
             }
 
             // WPA (v1) — deprecated
-            if (network.securityType == "WPA" && !network.securityType.contains("WPA2")) {
+            if (network.security == WifiSecurity.WPA) {
                 findings.add(SecurityFinding(
                     severity = FindingSeverity.HIGH,
                     category = FindingCategory.WIFI,
@@ -204,7 +205,7 @@ object SecurityAuditor {
 
         // Check if connected network uses WPA3
         val connectedNetwork = networks.find { it.isConnected }
-        if (connectedNetwork != null && connectedNetwork.securityType == "WPA2") {
+        if (connectedNetwork != null && connectedNetwork.security == WifiSecurity.WPA2) {
             findings.add(SecurityFinding(
                 severity = FindingSeverity.INFO,
                 category = FindingCategory.WIFI,

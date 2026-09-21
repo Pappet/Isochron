@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.isochron.audit.data.WifiNetwork
+import com.isochron.audit.data.WifiSecurity
 import com.isochron.audit.ui.components.rssiColor
 import com.isochron.audit.ui.theme.InterFamily
 import com.isochron.audit.ui.theme.JetBrainsMonoFamily
@@ -56,7 +57,7 @@ fun WifiDetailScreen(
     onClose: () -> Unit,
     onToggleFavorite: () -> Unit = {},
 ) {
-    val risk = network.isRiskFlagged()
+    val risk = network.isRisk()
 
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
         // Top bar
@@ -229,12 +230,13 @@ private fun SpecCell(label: String, value: String, modifier: Modifier = Modifier
 
 @Composable
 private fun RiskPanel(n: WifiNetwork) {
-    val sec = n.securityType
     val message = when {
-        sec.equals("Open", ignoreCase = true) ->
+        n.security.isUnencrypted ->
             "Open network — no encryption. Anyone can read traffic in transit."
-        sec.contains("WEP", ignoreCase = true) ->
+        n.security == WifiSecurity.WEP ->
             "WEP encryption is broken — can be cracked in minutes with airodump."
+        n.security == WifiSecurity.WPA ->
+            "WPA1 is deprecated — vulnerable to TKIP attacks."
         n.wpsEnabled ->
             "WPS is enabled — vulnerable to Pixie-Dust attack."
         else -> return
@@ -326,7 +328,3 @@ private fun HairlineRow() {
     Box(Modifier.fillMaxWidth().height(1.dp).background(Spectrum.GridLine))
 }
 
-private fun WifiNetwork.isRiskFlagged(): Boolean =
-    securityType.equals("Open", ignoreCase = true) ||
-            securityType.contains("WEP", ignoreCase = true) ||
-            wpsEnabled

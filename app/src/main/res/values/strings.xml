@@ -287,4 +287,15 @@
     <string name="lan_port_scan_progress">Port %1$d · %2$d%% · %3$d offen</string>
     <string name="lan_no_open_ports">Keine offenen Ports gefunden.</string>
     <string name="lan_port_service">%1$s · %2$s</string>
+    <!-- Berechtigungen: dauerhafte Ablehnung -->
+    <string name="perm_denied_permanently">Berechtigung dauerhaft abgelehnt. Bitte in den Systemeinstellungen erteilen.</string>
+    <string name="perm_open_settings">Einstellungen öffnen</string>
+
+    <!-- Onboarding: Ergebnis der Berechtigungsabfrage -->
+    <string name="onboarding_perm_denied_hint">Nicht alle Berechtigungen wurden erteilt. Ohne sie bleiben die Scan-Ergebnisse leer.</string>
+    <string name="onboarding_cta_skip_perms">Trotzdem fortfahren</string>
+
+    <!-- Inventar: Löschbestätigung -->
+    <string name="delete_confirm_title">Gerät löschen?</string>
+    <string name="delete_confirm_text">„%1$s“ wird mit allen Notizen, Labels und der Historie endgültig aus dem Inventar entfernt.</string>
 </resources>

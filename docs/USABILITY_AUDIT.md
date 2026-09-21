@@ -16,6 +16,35 @@ kein Emulator/Gerätetest. Alle Befunde stammen aus dem Quelltext. Die als
 *„Gerätetest empfohlen"* markierten Punkte sollten vor der Behebung am Gerät
 gegengeprüft werden.
 
+## Umsetzungsstand
+
+**Stufe 1 (Korrektheit) ist umgesetzt** — Commit „fix: address correctness and
+dead-end findings from the usability audit". Behoben: **A1, A2, A3, B1, B2, B3,
+B4, G1**. Die betroffenen Befunde unten tragen die Markierung ✅.
+
+Zwei Einschränkungen dazu:
+
+- **A3 nur dort, wo ein Banner existiert** (WLAN- und Bluetooth-Tab).
+  Kanalanalyse und Security-Audit haben gar keinen Berechtigungsbanner; ihr
+  Scan-Button bleibt bei fehlender Berechtigung wirkungslos. Das ist **C2/C3**
+  und gehört zu Stufe 2.
+- **Kein Build in dieser Umgebung.** Die Änderungen sind gegengelesen, aber
+  nicht kompiliert (kein Android SDK). `./gradlew compileDebugKotlin` und
+  `./gradlew test` müssen lokal laufen, bevor das gemerged wird.
+
+Drei sichtbare Nebenwirkungen, die aus den Fixes folgen und beim Testen
+erwartet werden sollten:
+
+- Der Security-Audit zeigt jetzt die INFO-Meldung **„WPA3 nicht aktiv"**. Ihre
+  Bedingung verglich auf `securityType == "WPA2"`, während der Scanner
+  `"WPA2 (CCMP)"` lieferte — die Prüfung war toter Code und feuert nun erstmals.
+- Der Audit meldet **deutlich weniger falsche Kritisch-Befunde**, weil WPA3-Netze
+  nicht mehr als offen durchgehen.
+- Der **KML-Wardriving-Export färbt Marker anders**: WPA3-Netze bekamen bisher
+  die rote „open"-Farbe, jetzt die grüne „wpa3"-Farbe.
+
+Alle übrigen Befunde sind unverändert offen.
+
 ## Bewertungsskala
 
 | Stufe | Bedeutung |
@@ -42,7 +71,7 @@ gegengeprüft werden.
 
 ## A — Navigation & Steuerung
 
-### A1 (P0) — Die Zurück-Taste existiert in der ganzen App nicht
+### A1 (P0) ✅ — Die Zurück-Taste existiert in der ganzen App nicht
 
 `grep -c BackHandler app/src/main` → **0**.
 
@@ -63,7 +92,7 @@ Android und der schwerwiegendste Einzelbefund.
 **Empfehlung:** `BackHandler(enabled = vm.selectedNetwork != null) { vm.selectedNetwork = null }`
 in jedem Overlay. Aufwand: ~10 Zeilen für alle fünf Stellen.
 
-### A2 (P0) — Onboarding springt über das Berechtigungsergebnis hinweg
+### A2 (P0) ✅ — Onboarding springt über das Berechtigungsergebnis hinweg
 
 `OnboardingScreen.kt:225-236`:
 
@@ -92,7 +121,7 @@ auslöst. Folgen:
 `permissionState.allPermissionsGranted`; bei Ablehnung einen erklärenden
 Zwischenschritt mit „Trotzdem fortfahren" / „Erneut fragen" anbieten.
 
-### A3 (P0) — Sackgasse bei dauerhaft abgelehnter Berechtigung
+### A3 (P0) ✅ (teilweise) — Sackgasse bei dauerhaft abgelehnter Berechtigung
 
 `WifiScreen.kt:147-155`, `BluetoothScreen.kt:161-168`, analog in Channel-Analysis
 und Security-Audit: Der Banner-Button ruft immer
@@ -151,7 +180,7 @@ das `DropdownMenu` ist an eine leere `Box` (Zeile 409) ohne Anker-Icon gebunden.
 
 ## B — Falsche oder irreführende Anzeigen
 
-### B1 (P0) — Offene WLANs werden im WLAN-Tab nie als Risiko markiert
+### B1 (P0) ✅ — Offene WLANs werden im WLAN-Tab nie als Risiko markiert
 
 Zwei Vokabulare treffen aufeinander:
 
@@ -168,7 +197,7 @@ App widerspricht sich also sichtbar zwischen zwei Tabs.
 **Empfehlung:** Sicherheitstyp als `enum` statt als String durch die Schichten
 reichen; Anzeigetext erst in der UI aus `strings.xml` erzeugen.
 
-### B2 (P0) — WPA3-Netze werden als „Offen" eingestuft
+### B2 (P0) ✅ — WPA3-Netze werden als „Offen" eingestuft
 
 `WifiScanner.kt:286-297` prüft der Reihe nach auf die Literale `"WPA3-Enterprise"`,
 `"WPA3-Personal"`, `"WPA3"`, `"WPA2"`, `"WPA"`, `"WEP"`, `"OWE"` — sonst `"Offen"`.
@@ -185,7 +214,7 @@ wird dadurch systematisch verfälscht.
 *Gerätetest empfohlen:* Exakte Capability-Strings auf einem WPA3-Router
 gegenprüfen, dann auf `SAE`/`RSN-SAE`/`OWE` matchen.
 
-### B3 (P0) — 6-GHz-Netze bekommen falsches Band und Kanal „-1"
+### B3 (P0) ✅ — 6-GHz-Netze bekommen falsches Band und Kanal „-1"
 
 `WifiScanner.kt:254`: `band = if (result.frequency > 4900) "5 GHz" else "2.4 GHz"`
 — eine Wi-Fi-6E-Zelle bei 5975 MHz wird zu „5 GHz".
@@ -197,7 +226,7 @@ ab, sonst `-1`. Dieselbe 6-GHz-Zelle erscheint in der Liste also als
 Die README verspricht ausdrücklich „band (2.4/5/6 GHz)" — das Feature existiert
 nicht.
 
-### B4 (P0) — Kanal 14 wird als „15" angezeigt
+### B4 (P0) ✅ — Kanal 14 wird als „15" angezeigt
 
 `WifiScanner.kt:274-276`:
 
@@ -580,7 +609,7 @@ Verhalten widersprechen sich.
 
 ## G — Datenhoheit
 
-### G1 (P0) — Löschen ohne Rückfrage, ohne Rückgängig
+### G1 (P0) ✅ — Löschen ohne Rückfrage, ohne Rückgängig
 
 `InventoryScreen.kt:419-422`: Der Menüpunkt „Löschen" ruft direkt
 `repository.deleteDevice(device.id)`. Kein Bestätigungsdialog, kein
@@ -711,7 +740,7 @@ sorgfältig gemacht:
 
 ## Empfohlene Reihenfolge
 
-### Stufe 1 — Korrektheit (bricht sonst das Kernversprechen)
+### Stufe 1 — Korrektheit (bricht sonst das Kernversprechen) — ✅ umgesetzt
 
 1. **B1** Sicherheitstyp als `enum` statt `"Offen"`/`"Open"` — behebt zugleich E3
 2. **B2** WPA3/SAE-Erkennung (falsche Kritisch-Meldungen im Audit)

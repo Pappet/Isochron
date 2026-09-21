@@ -3,6 +3,7 @@ package com.isochron.audit.ui.components
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,6 +51,10 @@ fun ExportDialog(onDismiss: () -> Unit) {
     var lanEnabled by remember { mutableStateOf(true) }
     var favOnly by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
+
+    // The sheet is a plain Box, not a Dialog, so system back would otherwise fall
+    // through to the pager and leave the sheet standing.
+    BackHandler { onDismiss() }
 
     val wifiCount by repository.observeWifiCount().collectAsState(initial = 0)
     val btCount by repository.observeBluetoothCount().collectAsState(initial = 0)
