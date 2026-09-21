@@ -834,3 +834,57 @@ sorgfältig gemacht:
 21. **H1** Kanaldiagramm scrollbar
 22. **B5/B6/B7** Visualisierungen ehrlich machen: Radar-Winkel, `SignalTrace`, Sparkline-Achsen
 23. **H5** `DeviceCards.kt` entfernen
+
+---
+
+## Offene Punkte
+
+Stand nach Stufe 4. Alles, was in keiner Stufe eingeplant war, plus die
+Reste teilweise umgesetzter Befunde.
+
+### Reste aus umgesetzten Befunden
+
+| Befund | Was noch fehlt |
+|---|---|
+| **E2** | `GattExplorer`-Statusmeldungen und Fehlertexte, `BleUuidDatabase` („Unbekannter Dienst"), `PortState`/`ServiceType`-Labels in `PortScanner.kt`, `DeviceCategory.displayName()` in `Entities.kt` (erreicht Inventar-Detail und CSV/JSON-Export) |
+| **H3** | Zoom-Buttons, Maßstabsleiste, „auf meine Position zentrieren"; die Karte zentriert weiterhin nur einmal |
+
+### Nicht eingeplante Befunde
+
+Nach Priorität, dann Reihenfolge im Dokument.
+
+**P1**
+
+| Befund | Kurzfassung |
+|---|---|
+| **A6** | Export-Sheet ist kein Modal — Pager-Wisch unter dem Sheet wechselt den Tab, Sheet endet über der Bottom-Nav |
+| **C4** | Android-Scan-Drosselung (4 Scans / 2 min) bleibt unerklärt; kein „zuletzt aktualisiert"-Zeitstempel |
+| **C5** | Fortschrittsbalken 1 dp (LAN, Port-Scan) bzw. 2 dp (Audit) — praktisch unsichtbar |
+| **D5** | Erzwungenes Dark-Theme ohne Hellvariante — als Designentscheidung dokumentieren oder Sonnenlicht-Modus anbieten |
+| **E4** | Keine `<plurals>` außer `ch_rec_aps`; Datumsformat `dd.MM.yy HH:mm` fest statt `FormatStyle.SHORT` |
+| **F2** | Export nur im Inventar erreichbar; nach WLAN-/LAN-Scan oder Audit keine Export-Möglichkeit an Ort und Stelle |
+| **F3** | Security-Audit-Report (Note, Befunde, Empfehlungen) lässt sich nicht exportieren |
+| **H2** | `MapView` im `HorizontalPager` ohne `requestDisallowInterceptTouchEvent` — horizontales Schwenken wechselt ggf. den Tab; Gerätetest steht aus |
+| **H4** | Querformat und Tablets nicht vorgesehen |
+
+**P2**
+
+| Befund | Kurzfassung |
+|---|---|
+| **A7** | Kontextmenü im Inventar nur per Long-Press auffindbar |
+| **C7** | Notification nutzt `android.R.drawable.ic_menu_manage` statt eines App-eigenen monochromen Icons |
+| **D7** | Kaum `rememberSaveable`; Filter, Auswahl und Scroll-Position überleben eine Rotation nicht |
+| **D8** | `BlinkingDot` und Pulse-Animationen ignorieren „Animationen reduzieren" |
+| **E5** | Uneinheitliche Bezeichner: WLAN / WIFI / WiFi / Airspace; Scannen / Scan |
+| **F5** | Kanalanalyse zeigt „CH- · 0% · 0 Kanäle" vor dem ersten Scan |
+| **H6** | Export erlaubt Dateien mit null Einträgen (`canExport` prüft `totalCount` nicht) |
+
+### Bekannte Einschränkungen der Umsetzung
+
+- **Stufe 1** wurde ohne Compiler geschrieben und erst danach lokal gebaut,
+  getestet und auf einem Gerät geprüft (Nothing A142P, Android 16). Alle
+  Stufen 2–4 wurden direkt auf diesem Gerät verifiziert; andere Android-
+  Versionen und Hersteller stehen aus.
+- Es gibt keine Unit-Tests für `SecurityAuditor`, `ChannelAnalyzer`-Empfehlungen,
+  die ViewModels oder den `ScanService`. Die 69 bestehenden Tests decken
+  `WifiCapabilities`, `ChannelAnalyzer.analyze`, `CsvEscape` und `SignalHelper`.
